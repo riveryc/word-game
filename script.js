@@ -19,6 +19,44 @@ let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 30; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
 
+// Proper CSV parsing function that handles commas within quoted fields
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    let i = 0;
+
+    while (i < line.length) {
+        const char = line[i];
+
+        if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                // Handle escaped quotes ("")
+                current += '"';
+                i += 2;
+            } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+                i++;
+            }
+        } else if (char === ',' && !inQuotes) {
+            // Found delimiter outside quotes
+            result.push(current);
+            current = '';
+            i++;
+        } else {
+            // Regular character
+            current += char;
+            i++;
+        }
+    }
+
+    // Add the last field
+    result.push(current);
+
+    return result;
+}
+
 // Enhanced text-to-speech function with online dictionary API
 async function speakWord(word) {
     // Check cache first for faster loading
@@ -189,10 +227,14 @@ async function loadAndCountWords() {
         allDescriptions = [];
 
         dataLines.forEach(line => {
-            const [word, description] = line.split(',');
-            if (word && description) {
-                allWords.push(word.toLowerCase().trim());
-                allDescriptions.push(description.trim());
+            const parsed = parseCSVLine(line);
+            if (parsed.length >= 2) {
+                const word = parsed[0].trim();
+                const description = parsed[1].trim();
+                if (word && description) {
+                    allWords.push(word.toLowerCase());
+                    allDescriptions.push(description);
+                }
             }
         });
 
@@ -231,7 +273,7 @@ async function loadAndCountWords() {
         console.error('Error loading words:', error);
         contentDiv.innerHTML = `
             <div class="error">
-                Error loading words.txt: ${error.message}
+                Error loading words.csv: ${error.message}
             </div>
         `;
     }
@@ -344,6 +386,9 @@ function startGame() {
 }
 
 function startRetryGame() {
+    // Remove retry keyboard shortcut
+    removeRetryKeyboardShortcut();
+
     // Hide final results, level selection, word count selection and show game interface
     document.getElementById('final-results').style.display = 'none';
     document.getElementById('level-selection').style.display = 'none';
@@ -572,7 +617,10 @@ function showFinalResults() {
         resultHTML += `<br><br>
             <button class="start-button" onclick="startRetryGame()">
                 Retry Incorrect Words (${actualIncorrectCount})
-            </button>`;
+            </button>
+            <div style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
+                💡 Tip: Press <strong>Enter</strong> to retry incorrect words
+            </div>`;
     } else {
         resultHTML += `<br><br>🎉 Perfect Score! Well done! 🎉`;
     }
@@ -583,9 +631,20 @@ function showFinalResults() {
     `;
 
     document.getElementById('final-score').innerHTML = resultHTML;
+
+    // Add keyboard shortcut ONLY if there are incorrect words and we're showing results
+    if (actualIncorrectCount > 0) {
+        // Use setTimeout to ensure the page is fully rendered first
+        setTimeout(() => {
+            addRetryKeyboardShortcut();
+        }, 100);
+    }
 }
 
 function restartGame() {
+    // Remove retry keyboard shortcut
+    removeRetryKeyboardShortcut();
+
     // Reset and show main content and level selection
     document.getElementById('final-results').style.display = 'none';
     document.getElementById('content').style.display = 'block';
@@ -594,6 +653,35 @@ function restartGame() {
     // Show word count selection if it was shown before (more than 30 words)
     if (allWords.length > 30) {
         document.getElementById('word-count-selection').style.display = 'block';
+    }
+}
+
+// Add keyboard shortcut for retry functionality
+function addRetryKeyboardShortcut() {
+    document.addEventListener('keydown', handleRetryKeydown);
+}
+
+// Remove keyboard shortcut for retry functionality
+function removeRetryKeyboardShortcut() {
+    document.removeEventListener('keydown', handleRetryKeydown);
+}
+
+// Handle Enter key press on final results page
+function handleRetryKeydown(event) {
+    if (event.key === 'Enter') {
+        // Only work if we're specifically on the final results page
+        const finalResults = document.getElementById('final-results');
+        const gameInterface = document.getElementById('game-interface');
+
+        // Make sure we're on results page AND not in game
+        if (finalResults.style.display === 'block' && gameInterface.style.display === 'none') {
+            const actualIncorrectCount = wordResults.filter(result => result === false).length;
+            if (actualIncorrectCount > 0) {
+                // Retry incorrect words
+                event.preventDefault(); // Prevent any other Enter key behavior
+                startRetryGame();
+            }
+        }
     }
 }
 
