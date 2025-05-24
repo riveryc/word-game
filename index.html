@@ -325,16 +325,354 @@
         .feedback-button:active {
             transform: translateY(0);
         }
+
+        /* Data Source Selection Styles */
+        .data-source-selection {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .source-options {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: 30px 0;
+            align-items: center;
+        }
+
+        .source-option {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid white;
+            border-radius: 15px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 400px;
+            position: relative;
+        }
+
+        .source-option:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .source-option input[type="radio"] {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            transform: scale(1.5);
+            cursor: pointer;
+        }
+
+        .source-option label {
+            cursor: pointer;
+            display: block;
+            padding-right: 40px;
+        }
+
+        .source-option.selected {
+            background-color: #8A2BE2;
+            border-color: #90EE90;
+            box-shadow: 0 0 15px rgba(144, 238, 144, 0.3);
+        }
+
+        .source-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: white;
+        }
+
+        .source-description {
+            font-size: 1em;
+            opacity: 0.9;
+            color: white;
+        }
+
+        .google-sheets-input {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .input-section label {
+            display: block;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .sheets-url-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 12px 15px;
+            font-size: 1em;
+            border: 2px solid white;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: purple;
+            font-family: Verdana, sans-serif;
+            margin-bottom: 10px;
+        }
+
+        .sheets-url-input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(144, 238, 144, 0.5);
+            border-color: #90EE90;
+        }
+
+        .url-help {
+            font-size: 0.9em;
+            color: #E6E6FA;
+            line-height: 1.4;
+            text-align: left;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        /* Word Filter Styles */
+        .word-filters {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .filter-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .filter-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-label {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: white;
+        }
+
+        .date-inputs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .date-input {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: purple;
+            border: 2px solid white;
+            padding: 8px 12px;
+            font-size: 1em;
+            border-radius: 5px;
+            font-family: Verdana, sans-serif;
+        }
+
+        .date-input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 5px rgba(144, 238, 144, 0.5);
+            border-color: #90EE90;
+        }
+
+        .date-separator {
+            color: white;
+            font-weight: bold;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+
+        .filter-checkbox:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .filter-checkbox input[type="checkbox"] {
+            margin-right: 5px;
+            transform: scale(1.2);
+        }
+
+        .filter-checkbox input[type="checkbox"]:checked + span {
+            font-weight: bold;
+        }
+
+        .filter-actions {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .filter-button {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid white;
+            padding: 8px 15px;
+            font-size: 1em;
+            font-family: Verdana, sans-serif;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        /* Example Sentence Styles */
+        .example-sentence {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 1.1em;
+            line-height: 1.4;
+            color: white;
+        }
+
+        .example-sentence strong {
+            color: #90EE90;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .word-description {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 1.1em;
+            line-height: 1.4;
+            color: white;
+        }
+
+        .word-description strong {
+            color: #FFD700;
+            display: block;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div id="content">
+        <!-- Data Source Selection -->
+        <div id="data-source-selection" class="data-source-selection">
+            <h1>Choose Your Word Source</h1>
+            <div class="source-options">
+                <div class="source-option" id="local-csv-option">
+                    <input type="radio" id="local-csv" name="data-source" value="local" checked>
+                    <label for="local-csv">
+                        <div class="source-title">📁 Local CSV File</div>
+                        <div class="source-description">Use the default word list (words.csv)</div>
+                    </label>
+                </div>
+
+                <div class="source-option" id="google-sheets-option">
+                    <input type="radio" id="google-sheets" name="data-source" value="google">
+                    <label for="google-sheets">
+                        <div class="source-title">📊 Google Sheets</div>
+                        <div class="source-description">Use sample sheet or load your own Google Sheet</div>
+                    </label>
+                </div>
+            </div>
+
+            <div id="google-sheets-input" class="google-sheets-input" style="display: none;">
+                <div class="input-section">
+                    <label for="sheets-url">Google Sheets URL:</label>
+                    <input type="text" id="sheets-url" class="sheets-url-input"
+                           value="https://docs.google.com/spreadsheets/d/1D7-Ny0FuD4w3inEi_lt-kpv7M0f7d0shnmS5TpiWdl0/edit?gid=0#gid=0"
+                           placeholder="Paste your Google Sheets URL here...">
+                    <div class="url-help">
+                        <strong>📋 Default sheet loaded!</strong> Ready to use, or replace with your own.<br>
+                        <strong>Required columns:</strong> word, date, grade, source, example sentence, description<br>
+                        <strong>Format:</strong> https://docs.google.com/spreadsheets/d/[ID]/edit
+                    </div>
+                </div>
+            </div>
+
+            <button class="start-button" id="load-data-button" onclick="loadSelectedDataSource()">
+                Load Words
+            </button>
+        </div>
+
+        <div id="content" style="display: none;">
             <div class="loading">Loading words...</div>
         </div>
 
         <!-- Level Selection -->
         <div id="level-selection" class="level-selection">
+            <!-- Word Filters -->
+            <div id="word-filters" class="word-filters" style="display: none;">
+                <div class="filter-title">📊 Filter Words</div>
+
+                <div class="filter-section">
+                    <div class="filter-group">
+                        <label class="filter-label">📅 Date Range:</label>
+                        <div class="date-inputs">
+                            <input type="date" id="date-from" class="date-input" placeholder="From">
+                            <span class="date-separator">to</span>
+                            <input type="date" id="date-to" class="date-input" placeholder="To">
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">🎓 Grade:</label>
+                        <div id="grade-filters" class="checkbox-group"></div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">📚 Source:</label>
+                        <div id="source-filters" class="checkbox-group"></div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button class="filter-button" onclick="resetFilters()">🔄 Reset Filters</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="level-title">Choose Difficulty Level:</div>
             <div class="level-options">
                 <div class="level-option" onclick="selectLevel(1)" data-level="1">

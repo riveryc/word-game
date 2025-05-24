@@ -63,28 +63,44 @@ Choose from 6 difficulty levels:
    http://localhost:8000
    ```
 
-5. **Start playing!** 🎉
+5. **Access from other devices** (phones, tablets, other computers):
+   - The server will display your network IP address when it starts
+   - Use that IP address from other devices on the same network
+   - Example: `http://192.168.31.11:8000/`
+
+6. **Start playing!** 🎉
 
 ## 📖 How to Play
 
-### 1. **Choose Your Settings**
+### 1. **Choose Your Data Source**
+- **📁 Local CSV File**: Use the default word list (words.csv)
+- **📊 Google Sheets**: Load words from your own Google Sheet
+
+### 2. **Filter Your Words** (Google Sheets only)
+- **📅 Date Range**: Filter words by date range (from/to)
+- **🎓 Grade**: Select specific grades to practice
+- **📚 Source**: Choose words from specific sources
+- Real-time filtering with word count updates
+
+### 3. **Choose Your Settings**
 - Select from 6 difficulty levels
 - Choose word count (if more than 30 words available)
 - Higher levels show fewer letters
 
-### 2. **Spell the Words**
+### 4. **Spell the Words**
 - Listen to crystal-clear internet-based pronunciation (much better than computer voice!)
-- Read the helpful description
+- Read the example sentence with the target word hidden (_____)
+- Use context clues to understand the word's meaning
 - Click in the gaps and type missing letters
 - Press **Space bar** to repeat audio anytime (instant replay from cache)
 
-### 3. **Submit Your Answer**
+### 5. **Submit Your Answer**
 - Press **Enter** when ready to check spelling
 - ✅ Correct answers move on automatically
 - ❌ Incorrect answers show big, bright correct spelling
 - Press **Enter** again to continue when ready
 
-### 4. **Review & Retry**
+### 6. **Review & Retry**
 - See your final score with clean progress display
 - Press **Enter** to quickly retry incorrect words
 - Keep practicing until you master them all!
@@ -102,6 +118,7 @@ word_game/
 
 ## 📝 Customizing Words
 
+### Local CSV File
 Edit `words.csv` to add your own words with proper CSV format:
 
 ```csv
@@ -111,11 +128,42 @@ dog,"A friendly animal that barks, wags its tail, and loves to play"
 elephant,"A huge, gray animal with a long trunk and big ears"
 ```
 
+### Google Sheets Integration
+Use Google Sheets for collaborative word management:
+
+1. **Create a Google Sheet** with these columns:
+   ```
+   word | date | grade | source | example sentence | description
+   ```
+
+2. **Make it public**:
+   - Click "Share" → "Change to anyone with the link"
+   - Set permission to "Viewer"
+
+3. **Copy the URL** and paste it into the game
+
+**Default Sample Sheet:**
+The game comes pre-loaded with a sample Google Sheet:
+```
+https://docs.google.com/spreadsheets/d/1D7-Ny0FuD4w3inEi_lt-kpv7M0f7d0shnmS5TpiWdl0/edit?gid=0#gid=0
+```
+You can use this immediately or replace it with your own sheet URL.
+
+**Example Google Sheets format:**
+```
+word     | date       | grade | source  | example sentence              | description
+cat      | 2024-01-15 | 2     | phonics | The cat sat on the mat        | (for future use)
+dog      | 2024-01-15 | 2     | phonics | My dog loves to play fetch    | (for future use)
+elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for future use)
+```
+
 **Format Notes:**
-- Use quotes around descriptions containing commas
+- **Required columns**: `word` and `example sentence` (others are optional)
+- **Example sentences**: The target word will be hidden with underscores during gameplay
+- **Description column**: Currently unused, reserved for future features
+- Use quotes around text containing commas
 - Keep words age-appropriate for your target audience
-- Make descriptions clear and helpful
-- Supports complex descriptions with proper grammar
+- Make example sentences clear and contextual
 
 ## 🎯 Educational Benefits
 
@@ -136,6 +184,12 @@ elephant,"A huge, gray animal with a long trunk and big ears"
 
 ## 🛠️ Technical Features
 
+- **Dual Data Sources**: Choose between local CSV files or Google Sheets integration
+- **Google Sheets Integration**: Load words directly from public Google Sheets with 6-column support
+- **Example Sentences**: Contextual learning with target word hidden in example sentences
+- **Pre-configured Sample**: Comes with a ready-to-use Google Sheet for immediate play
+- **Advanced Filtering**: Filter words by date range, grade, and source (Google Sheets only)
+- **Real-time Updates**: Word count and selections update instantly as filters change
 - **Internet-Based Audio**: Dictionary API (dictionaryapi.dev) with US pronunciation preference for superior quality
 - **Smart Audio System**: 3-second timeout with instant fallback to computer voice if internet unavailable
 - **Performance Caching**: Audio URLs cached for instant replay without re-downloading
@@ -168,6 +222,38 @@ elephant,"A huge, gray animal with a long trunk and big ears"
 - **Smart Audio Fallback**: Seamlessly switches to computer voice if internet/dictionary API unavailable
 - **CSV Flexibility**: Supports both simple and complex description formats
 
+## 🔧 Network Troubleshooting
+
+If you can't access the game from other devices:
+
+### **Quick Diagnostics**
+Run the network checker:
+```bash
+python3 network_check.py
+```
+
+### **Common Solutions**
+1. **Firewall Issues**:
+   - **macOS**: System Preferences → Security & Privacy → Firewall → Allow Python
+   - **Windows**: Windows Defender → Allow an app → Add Python
+   - **Linux**: `sudo ufw allow 8000` or disable firewall temporarily
+
+2. **Network Issues**:
+   - Ensure all devices are on the same WiFi network
+   - Check if your router blocks device-to-device communication
+   - Try accessing from the same computer first (`http://localhost:8000`)
+
+3. **Port Issues**:
+   - If port 8000 is busy, the server will show an error
+   - Change the PORT variable in `server.py` to use a different port
+
+### **Testing Steps**
+1. ✅ Access works locally: `http://localhost:8000`
+2. ✅ Server shows network IP when starting
+3. ✅ Other device on same WiFi network
+4. ✅ Use the exact IP shown by server
+5. ✅ Firewall allows Python/port 8000
+
 ## 🤝 Contributing
 
 This is an educational project perfect for:
@@ -192,6 +278,10 @@ Created with love for young learners everywhere! Special thanks to:
 **Happy Spelling!** 📚✨🎯
 
 ### 🔄 Version History
+- **v2.4**: Example sentence support with hidden target words for contextual learning
+- **v2.3**: Network accessibility and pre-filled default Google Sheets URL
+- **v2.2**: Advanced filtering system for Google Sheets (date, grade, source filters)
+- **v2.1**: Google Sheets integration with dual data source selection
 - **v2.0**: Enhanced audio system with dictionary API and caching
 - **v1.9**: Full keyboard control with Space bar repeat
 - **v1.8**: Bulletproof retry system and enhanced error display
