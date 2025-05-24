@@ -17,10 +17,101 @@ let waitingForContinue = false; // Track if we're waiting for Enter to continue 
 let selectedLevel = 3; // Default to Level 3 (70% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 30; // Default number of words to practice
+let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
 
-// Text-to-speech function
-function speakWord(word) {
-    // Check if speech synthesis is supported
+// Enhanced text-to-speech function with online dictionary API
+async function speakWord(word) {
+    // Check cache first for faster loading
+    if (audioCache.has(word)) {
+        const cachedAudioUrl = audioCache.get(word);
+        if (cachedAudioUrl) {
+            try {
+                const audio = new Audio(cachedAudioUrl);
+                audio.volume = 1.0;
+                await audio.play();
+                return; // Success with cached audio
+            } catch (audioError) {
+                console.log('Cached audio playback failed, trying fresh API call');
+                audioCache.delete(word); // Remove bad cache entry
+            }
+        } else {
+            // Cached as "no audio available", go straight to fallback
+            useFallbackSpeech(word);
+            return;
+        }
+    }
+
+    try {
+        // Fetch from dictionary API with timeout for faster response
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+
+        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Look for audio URLs and prefer US pronunciation
+            let usAudioUrl = null;
+            let fallbackAudioUrl = null;
+
+            // Check all entries for audio
+            for (const entry of data) {
+                if (entry.phonetics) {
+                    for (const phonetic of entry.phonetics) {
+                        if (phonetic.audio && phonetic.audio.trim() !== '') {
+                            // Prefer US pronunciation (contains "-us." in URL)
+                            if (phonetic.audio.includes('-us.')) {
+                                usAudioUrl = phonetic.audio;
+                                break;
+                            } else if (!fallbackAudioUrl) {
+                                // Store first available as fallback
+                                fallbackAudioUrl = phonetic.audio;
+                            }
+                        }
+                    }
+                    if (usAudioUrl) break;
+                }
+            }
+
+            // Use US audio if available, otherwise use first available
+            const audioUrl = usAudioUrl || fallbackAudioUrl;
+
+            if (audioUrl) {
+                // Cache the audio URL for faster future access
+                audioCache.set(word, audioUrl);
+
+                const audio = new Audio(audioUrl);
+                audio.volume = 1.0;
+
+                try {
+                    await audio.play();
+                    return; // Success! Don't use fallback
+                } catch (audioError) {
+                    console.log('Audio playback failed, falling back to speech synthesis');
+                }
+            } else {
+                // Cache that no audio is available
+                audioCache.set(word, null);
+            }
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('Dictionary API timeout, falling back to speech synthesis');
+        } else {
+            console.log('Dictionary API failed, falling back to speech synthesis:', error);
+        }
+    }
+
+    // Fallback to computer speech synthesis
+    useFallbackSpeech(word);
+}
+
+// Separate function for fallback speech to avoid code duplication
+function useFallbackSpeech(word) {
     if ('speechSynthesis' in window) {
         // Cancel any ongoing speech
         speechSynthesis.cancel();
@@ -29,9 +120,9 @@ function speakWord(word) {
         const utterance = new SpeechSynthesisUtterance(word);
 
         // Configure speech settings
-        utterance.rate = 0.1;  // Much slower for better clarity
+        utterance.rate = 0.6;  // Much slower for better clarity
         utterance.pitch = 1.0; // Normal pitch
-        utterance.volume = 1.0; // Full volume (already at maximum)
+        utterance.volume = 1.0; // Full volume
 
         // Speak the word
         speechSynthesis.speak(utterance);
@@ -220,8 +311,10 @@ function createPartialWord(word) {
 }
 
 function startGame() {
-    // Hide the main content and show game interface
+    // Hide the main content, level selection, word count selection and show game interface
     document.getElementById('content').style.display = 'none';
+    document.getElementById('level-selection').style.display = 'none';
+    document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('game-interface').style.display = 'block';
     document.getElementById('final-results').style.display = 'none';
 
@@ -251,8 +344,10 @@ function startGame() {
 }
 
 function startRetryGame() {
-    // Hide final results and show game interface
+    // Hide final results, level selection, word count selection and show game interface
     document.getElementById('final-results').style.display = 'none';
+    document.getElementById('level-selection').style.display = 'none';
+    document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('game-interface').style.display = 'block';
 
     // Create retry game with words that were marked as incorrect
@@ -387,6 +482,10 @@ function handleInlineKeydown(event) {
             // Normal answer checking
             checkAnswer();
         }
+    } else if (event.key === ' ' || event.key === 'Spacebar') {
+        // Space bar to repeat the word
+        event.preventDefault(); // Prevent space from being typed in input
+        repeatWord();
     } else if (event.key === 'Backspace' && !input.value && !waitingForContinue) {
         // Move to previous input field if current is empty and backspace is pressed
         const allInputs = document.querySelectorAll('.inline-input');
@@ -433,7 +532,11 @@ function checkAnswer() {
     } else {
         // Incorrect answer - word stays marked as incorrect (false by default)
         const expectedWord = currentWord;
-        feedbackDiv.innerHTML = `<span class="incorrect">✗ Incorrect. The word was: "${expectedWord}"<br><br>Press <strong>Enter</strong> to continue to the next word</span>`;
+        feedbackDiv.innerHTML = `
+            <span class="incorrect">✗ Incorrect!</span><br>
+            <div class="correct-word-display">${expectedWord}</div>
+            <div style="margin-top: 15px;">Press <strong>Enter</strong> to continue to the next word</div>
+        `;
         feedbackDiv.className = 'feedback incorrect';
 
         // Set waiting state - this prevents auto-progression
