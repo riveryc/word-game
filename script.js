@@ -735,47 +735,8 @@ async function loadLocalCSV() {
         // Get the text content
         const text = await response.text();
 
-        // Parse CSV content
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-        const header = lines[0]; // Skip header row
-        const dataLines = lines.slice(1);
-
-        // Parse each line
-        allWords = [];
-        allDescriptions = [];
-        allExampleSentences = [];
-        allWordData = [];
-
-        dataLines.forEach(line => {
-            const parsed = parseCSVLine(line);
-            if (parsed.length >= 2) {
-                const word = parsed[0].trim();
-                const description = parsed[1].trim();
-                if (word && description) {
-                    allWords.push(word.toLowerCase());
-                    allExampleSentences.push(''); // Local CSV doesn't have example sentences
-                    allDescriptions.push(description);
-                    allWordData.push({
-                        word: word.toLowerCase(),
-                        date: '',
-                        grade: '',
-                        source: '',
-                        exampleSentence: '',
-                        description: description
-                    });
-                }
-            }
-        });
-
-        if (allWords.length === 0) {
-            throw new Error('No valid word entries found in words.csv');
-        }
-
-        // Extract available grades and sources for filtering
-        extractFilterOptions();
-
-        // Show success and proceed to level selection
-        showWordCountAndLevelSelection();
+        // Reuse the same parsing logic as Google Sheets
+        parseGoogleSheetsData(text);
 
     } catch (error) {
         console.error('Error loading words:', error);

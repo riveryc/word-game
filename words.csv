@@ -1,123 +1,42 @@
-word,description
-Raining,When water falls from the clouds. You need an umbrella!
-Queen,"The most important lady in the kingdom, like a princess who sits on a throne."
-Beginning,When something starts. Like the start of a story or the first day of school.
-Lose,To not have something anymore. Like losing your toy.
-lost,"Not having something anymore, you can’t find it."
-Build,To make something. Like building a tower with blocks or building a sandcastle.
-built,"Made something in the past, like a tower that has already been built."
-Ride,"To sit on something and move, like riding a bike or riding a horse."
-rode,"Sat on something and moved in the past, like when you rode your bike yesterday."
-Again,"One more time. If you do something again, you do it another time."
-Heavily,"A lot of something. Like when it rains a lot, it rains heavily."
-Exciting,Something fun and makes you feel happy and jumpy!
-Indoor,Inside a building or house. Not outside.
-Return,To go back to where you started. Like returning home after school.
-Either,One choice or the other. You can have this OR that.
-Jumping hard,To push off the ground with your feet very strongly and go high into the air.
-Puddle,"A small pool of water on the ground, after it rains."
-Boat,Something that floats on water and you can travel in.
-Soak,To get very wet. Like when your clothes get soaked in the rain.
-Soap,Something you use to wash your hands and get clean.
-Soaking,"Getting really, really wet."
-Places,Different spots. Like going to many different places on holiday.
-Completely,All done or all the way. Like when something is completely finished.
-Important,Something that matters a lot. Like important homework you must do!
-Giant,"Very, very big. Like a giant in a story!"
-Terrible,Very bad. Like a terrible mess or a terrible day.
-Arcade,"A place with lots of games to play, often with flashing lights and sounds."
-Heard,"What you do with your ears, like hearing a loud noise or a story."
-Weird,Something strange or unusual. Like a weird-looking animal.
-Walked,To move by putting one foot in front of the other. Like walking to the park.
-Suddenly,Happens very quickly and unexpectedly.
-Quiet,Making little or no sound. Like being very quiet in the library.
-Hidden,"Something that is not easy to see, it is covered or tucked away."
-Mysterious,Something puzzling or strange that you don't understand.
-Forgotten,To not remember something. Like forgetting your homework.
-Although,"Even though. Like, ""Although it was raining, we still went to the park."""
-Silent,"Very, very quiet. No sound at all."
-Stepped inside,To put your foot into a building or room.
-Strange,Odd or unusual. Something that is a bit different.
-Echoing,"When a sound bounces back and you hear it again, like in a big empty room."
-Flickering,Light that goes on and off quickly.
-Sound,"Something you can hear, like music or someone talking."
-Found,To discover something. Like finding a lost toy.
-Mount,Like climbing a big hill or stairs.
-Gigantic,Extremely big. Even bigger than giant!
-Giant,"Very, very big."
-Massive,Very big and heavy.
-Enormous,"Very, very, very big."
-Huge,Very big.
-Tiny,"Very, very small."
-Little,Small.
-Microscope,A special tool that makes very small things look bigger so we can see them better.
-Joyful,Very happy and full of joy!
-Excited,Feeling very happy and thrilled about something.
-Cheerful,Happy and bright. Like someone who is always smiling.
-Glad,Happy and pleased about something.
-Unhappy,"Not happy, feeling sad."
-Upset,Feeling sad and worried about something.
-Tearful,About to cry or already crying.
-Kind,Being nice and helpful to others.
-Caring,Showing that you care about someone and want to help them.
-Friendly,"Being nice and kind to everyone, like making new friends easily."
-Horrible,"Very, very bad or unpleasant."
-Rude,"Not polite, saying or doing things that are unkind to others."
-Loverly,Very nice and beautiful.
-Thoughtful,Thinking of others and doing nice things for them.
-Naughty,Doing things that are bad and you shouldn't be doing.
-Unkind,Not being nice or helpful to others.
-Awful,"Very bad, terrible."
-Quick,Fast. Doing something very fast.
-Speedy,Very fast. Even faster than quick!
-Rapid,"Very, very fast."
-Swift,Very quick and fast.
-Lazy,Not wanting to do any work or move around much.
-Gentle,Being very careful and soft. Like giving a gentle pat to a pet.
-Slow,Moving or doing something not fast.
-Cautious,Being careful and trying not to do something that could be dangerous.
-Excellent,"Very, very good. The best!"
-Fantastic,"Amazing! Really, really good."
-Amazing,"Very, very good and wonderful."
-Great,Very good.
-Brilliant,Really clever and smart! Also can mean very good.
-Fascinated,Very interested in something and wanting to learn more.
-Fascinating,Something that is very interesting and makes you want to know more.
-Exhilarating,Feeling very excited and happy!
-Freezing,"Very, very cold. Like when everything is covered in ice."
-Chilly,A little cold. You might need a jacket.
-Icy,"Covered in ice, very slippery and cold."
-Spooky,A little scary or creepy. Like a ghost story.
-Creepy,Makes you feel a bit scared and uncomfortable.
-Scary,Something that makes you afraid.
-Frightening,"Very scary, makes you very afraid."
-Beautiful,Very pretty to look at. Like a beautiful flower.
-Gorgeous,"Very, very beautiful. Even more than beautiful!"
-Lovely,Nice and beautiful.
-Charming,Nice and pleasant. Makes you smile.
-Clever,Very smart and good at learning.
-Bright,Full of light or smart and clever.
-Intelligent,Very smart and understanding things well.
-Wise,Very smart because they have learned a lot over time.
-Noisy,Making a lot of sound. Like a busy street.
-Loud,A very big sound.
-Smart,Clever and quick at learning things.
-Pretty,"Nice to look at, like a pretty dress or flower."
-Silent,"Very, very quiet. No sound at all."
-Calm,"Not nervous or excited, feeling peaceful."
-Peacefully,Doing something in a calm and quiet way.
-Peaceful,"Quiet and calm, making you feel relaxed."
-Glance,To look at something quickly.
-Look,To use your eyes to see something.
-Stare,To look at something for a long time without looking away.
-Walk,To move by putting one foot in front of the other.
-Stroll,To walk slowly and in a relaxed way.
-Wander,To walk around without a specific direction or purpose.
-Dash,To run very fast for a short distance.
-Race,To run very fast to see who is the quickest.
-Said,To speak words out loud.
-Shouted,To say something very loudly.
-Whispered,To speak very softly and quietly.
-Replied,To answer something.
-Explained,To make something clear or easy to understand.
-Asked,To say a question or to request something.
+word,date,grade,source,Example sentence,description
+Raining,2025-03-15,bonus word,Daily writing,It was raining all morning.,
+Queen,2025-03-15,bonus word,Daily writing,The queen wore a shiny crown.,
+Beginning,2025-03-15,bonus word,Daily writing,The story had a happy beginning.,
+Lose,2025-03-15,bonus word,Daily writing,Be careful not to lose your hat.,
+lost,2025-03-15,bonus word,Daily writing,I lost my favorite toy.,
+Build,2025-03-15,bonus word,Daily writing,We will build a tall tower.,
+built,2025-03-15,bonus word,Daily writing,He built a big sandcastle.,
+Ride,2025-03-15,bonus word,Daily writing,I like to ride my bike.,
+rode,2025-03-15,bonus word,Daily writing,She rode the horse gracefully.,
+Again,2025-03-15,bonus word,Daily writing,Let's play that game again.,
+Heavily,2025-03-15,bonus word,Daily writing,It rained heavily all night.,
+Exciting,2025-03-15,bonus word,Daily writing,The roller coaster was so exciting!,
+Indoor,2025-03-15,bonus word,Daily writing,We played an indoor game.,
+Return,2025-03-15,bonus word,Daily writing,Please return the book to the shelf.,
+Either,2025-03-15,bonus word,Daily writing,You can either have cake or ice cream.,
+Jumping,2025-03-15,bonus word,Daily writing,The children were jumping for joy.,
+Puddle,2025-03-15,bonus word,Daily writing,He splashed in the puddle.,
+Boat,2025-03-15,bonus word,Daily writing,The boat sailed on the lake.,
+Soak,2025-03-15,bonus word,Daily writing,My clothes will soak in the rain.,
+Soap,2025-03-15,bonus word,Daily writing,Please use soap to wash your hands.,
+Soaking,2025-03-15,bonus word,Daily writing,The sponge was soaking wet.,
+Places,2025-03-15,bonus word,Daily writing,We visited many new places.,
+Completely,2025-03-15,bonus word,Daily writing,The box was completely empty.,
+Important,2025-03-15,bonus word,Daily writing,It is important to listen.,
+Giant,2025-03-15,bonus word,Daily writing,The giant ate a huge sandwich.,
+Terrible,2025-03-15,bonus word,Daily writing,The weather was terrible yesterday.,
+Arcade,2025-03-15,bonus word,Daily writing,We played games at the arcade.,
+Heard,2025-03-15,bonus word,Daily writing,I heard a strange noise.,
+Weird,2025-03-15,bonus word,Daily writing,That was a weird dream.,
+Walked,2025-04-15,bonus word,Tara,He walked to the store.,
+Suddenly,2025-04-15,must know,Tara,"Suddenly, the dog barked.",
+Quiet,2025-04-15,must know,Tara,The room was quiet.,
+Hidden,2025-04-15,must know,Tara,The treasure was hidden under the tree.,
+Mysterious,2025-04-15,must know,Tara,The old house looked very mysterious.,
+Forgotten,2025-04-15,must know,Tara,I found a forgotten toy under the bed.,
+Although,2025-03-15,must know,Tara,"Although it was raining, we still went outside.",
+Silent,2025-04-15,must know,Tara,The library was very silent.,
+Stepped,2025-04-15,must know,Tara,She stepped carefully over the puddle.,
+inside,2025-04-15,must know,Tara,We played games inside the house.,
+Strange,2025-04-15,bonus word,Tara,The cat made a strange noise.,
+Echoing,2025-04-15,bonus word,Tara,Her voice was echoing in the empty hall.,
