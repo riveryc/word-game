@@ -230,6 +230,46 @@
             font-weight: bold;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
         }
+
+        .word-count-selection {
+            display: none;
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid white;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .word-count-title {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: white;
+        }
+
+        .word-count-input {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: purple;
+            border: 2px solid white;
+            padding: 8px 12px;
+            font-size: 1.2em;
+            font-family: Verdana, sans-serif;
+            border-radius: 5px;
+            text-align: center;
+            width: 80px;
+            margin: 0 10px;
+        }
+
+        .word-count-input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+
+        .word-count-info {
+            font-size: 1em;
+            margin-top: 10px;
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -269,6 +309,17 @@
                 </div>
             </div>
             <button class="start-button" onclick="startGameWithLevel()" style="margin-top: 20px;">Start Game!</button>
+        </div>
+
+        <!-- Word Count Selection (only shown for large word lists) -->
+        <div id="word-count-selection" class="word-count-selection">
+            <div class="word-count-title">How many words would you like to practice?</div>
+            <div>
+                Practice <input type="number" id="word-count-input" class="word-count-input" value="30" min="1"> words
+            </div>
+            <div class="word-count-info" id="word-count-info">
+                (Total available: <span id="total-words-count">0</span> words)
+            </div>
         </div>
 
         <!-- Game Interface -->

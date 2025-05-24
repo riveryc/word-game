@@ -16,6 +16,7 @@ let lastFocusedInput = null; // Track the last focused input field
 let waitingForContinue = false; // Track if we're waiting for Enter to continue after incorrect answer
 let selectedLevel = 3; // Default to Level 3 (70% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
+let selectedWordCount = 30; // Default number of words to practice
 
 // Text-to-speech function
 function speakWord(word) {
@@ -112,6 +113,25 @@ async function loadAndCountWords() {
             <div>Total number of words:</div>
             <div class="word-count">${wordCount}</div>
         `;
+
+        // Show word count selection if more than 30 words
+        if (wordCount > 30) {
+            document.getElementById('word-count-selection').style.display = 'block';
+            document.getElementById('total-words-count').textContent = wordCount;
+
+            // Set max value for input and update default if needed
+            const wordCountInput = document.getElementById('word-count-input');
+            wordCountInput.max = wordCount;
+
+            // Update input event listener
+            wordCountInput.addEventListener('input', function() {
+                selectedWordCount = Math.min(Math.max(1, parseInt(this.value) || 1), wordCount);
+                this.value = selectedWordCount;
+            });
+        } else {
+            // For 30 or fewer words, use all words
+            selectedWordCount = wordCount;
+        }
 
         // Show level selection
         document.getElementById('level-selection').style.display = 'block';
@@ -212,8 +232,11 @@ function startGame() {
     }));
 
     const shuffledPairs = shuffleArray(wordDescriptionPairs);
-    gameWords = shuffledPairs.map(pair => pair.word);
-    gameDescriptions = shuffledPairs.map(pair => pair.description);
+
+    // Use only the selected number of words
+    const selectedPairs = shuffledPairs.slice(0, selectedWordCount);
+    gameWords = selectedPairs.map(pair => pair.word);
+    gameDescriptions = selectedPairs.map(pair => pair.description);
 
     currentWordIndex = 0;
     correctAnswers = 0;
@@ -425,8 +448,9 @@ function checkAnswer() {
 }
 
 function showFinalResults() {
-    // Hide game interface and show results
+    // Hide game interface and word count selection, show results
     document.getElementById('game-interface').style.display = 'none';
+    document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('final-results').style.display = 'block';
 
     // Count actual correct and incorrect words from the results array
@@ -463,6 +487,11 @@ function restartGame() {
     document.getElementById('final-results').style.display = 'none';
     document.getElementById('content').style.display = 'block';
     document.getElementById('level-selection').style.display = 'block';
+
+    // Show word count selection if it was shown before (more than 30 words)
+    if (allWords.length > 30) {
+        document.getElementById('word-count-selection').style.display = 'block';
+    }
 }
 
 // Load and count words when the page loads
