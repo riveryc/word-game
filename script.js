@@ -1,12 +1,17 @@
 // Game state variables
 let allWords = [];
 let allDescriptions = [];
+let allExampleSentences = []; // New: example sentences for each word
+let allWordData = []; // Complete word data with all columns
+let filteredWordData = []; // Filtered word data based on user selection
 let gameWords = [];
 let gameDescriptions = [];
+let gameExampleSentences = []; // New: example sentences for game words
 let wordResults = []; // Track result for each word: true = correct, false = incorrect
 let currentWordIndex = 0;
 let currentWord = '';
 let currentDescription = '';
+let currentExampleSentence = ''; // New: current example sentence
 let partialWord = '';
 let missingLetters = '';
 let correctAnswers = 0;
@@ -18,6 +23,514 @@ let selectedLevel = 3; // Default to Level 3 (70% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 30; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
+
+// Data source variables
+let currentDataSource = 'local'; // 'local' or 'google'
+let googleSheetsUrl = '';
+
+// Filter variables
+let availableGrades = [];
+let availableSources = [];
+let selectedGrades = [];
+let selectedSources = [];
+let dateFrom = '';
+let dateTo = '';
+
+// Data source selection functions
+function setupDataSourceSelection() {
+    const localRadio = document.getElementById('local-csv');
+    const googleRadio = document.getElementById('google-sheets');
+    const googleInput = document.getElementById('google-sheets-input');
+    const localOption = document.getElementById('local-csv-option');
+    const googleOption = document.getElementById('google-sheets-option');
+
+    // Handle radio button changes
+    localRadio.addEventListener('change', function() {
+        if (this.checked) {
+            currentDataSource = 'local';
+            googleInput.style.display = 'none';
+            updateOptionSelection();
+        }
+    });
+
+    googleRadio.addEventListener('change', function() {
+        if (this.checked) {
+            currentDataSource = 'google';
+            googleInput.style.display = 'block';
+            updateOptionSelection();
+            // Focus on URL input
+            document.getElementById('sheets-url').focus();
+        }
+    });
+
+    // Handle clicking on option containers
+    localOption.addEventListener('click', function() {
+        localRadio.checked = true;
+        localRadio.dispatchEvent(new Event('change'));
+    });
+
+    googleOption.addEventListener('click', function() {
+        googleRadio.checked = true;
+        googleRadio.dispatchEvent(new Event('change'));
+    });
+
+    function updateOptionSelection() {
+        localOption.classList.toggle('selected', localRadio.checked);
+        googleOption.classList.toggle('selected', googleRadio.checked);
+    }
+
+    // Initialize selection
+    updateOptionSelection();
+}
+
+function loadSelectedDataSource() {
+    if (currentDataSource === 'local') {
+        loadLocalCSV();
+    } else {
+        const url = document.getElementById('sheets-url').value.trim();
+        if (!url) {
+            showUrlError('Please enter a Google Sheets URL');
+            return;
+        }
+
+        // Basic URL validation
+        if (!url.includes('docs.google.com/spreadsheets')) {
+            showUrlError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
+            return;
+        }
+
+        googleSheetsUrl = url;
+        loadGoogleSheets(url);
+    }
+}
+
+function showUrlError(message) {
+    const urlInput = document.getElementById('sheets-url');
+    urlInput.style.borderColor = '#FF4444';
+    urlInput.style.backgroundColor = 'rgba(255, 68, 68, 0.1)';
+
+    // Show error message
+    let errorDiv = document.getElementById('url-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'url-error';
+        errorDiv.style.color = '#FF6666';
+        errorDiv.style.fontSize = '0.9em';
+        errorDiv.style.marginTop = '5px';
+        urlInput.parentNode.appendChild(errorDiv);
+    }
+    errorDiv.textContent = message;
+
+    // Clear error on focus
+    urlInput.addEventListener('focus', function() {
+        this.style.borderColor = 'white';
+        this.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        if (errorDiv) {
+            errorDiv.remove();
+        }
+    }, { once: true });
+}
+
+// Google Sheets integration functions
+function extractSheetId(url) {
+    // Handle various Google Sheets URL formats
+    const patterns = [
+        /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,  // Standard format
+        /\/d\/([a-zA-Z0-9-_]+)/,               // Short format
+        /id=([a-zA-Z0-9-_]+)/                  // Query parameter format
+    ];
+
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            return match[1];
+        }
+    }
+    return null;
+}
+
+function generateCSVExportUrl(sheetId) {
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+}
+
+async function loadGoogleSheets(url) {
+    // Show loading state
+    document.getElementById('data-source-selection').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    const contentDiv = document.getElementById('content');
+    contentDiv.innerHTML = '<div class="loading">Loading from Google Sheets...</div>';
+
+    try {
+        // Extract sheet ID from URL
+        const sheetId = extractSheetId(url);
+        if (!sheetId) {
+            throw new Error('Invalid Google Sheets URL. Please check the URL format.');
+        }
+
+        // Generate CSV export URL
+        const csvUrl = generateCSVExportUrl(sheetId);
+
+        // Fetch the CSV data
+        const response = await fetch(csvUrl);
+
+        if (!response.ok) {
+            if (response.status === 403) {
+                throw new Error('This Google Sheet is private. Please make it public or check sharing settings.');
+            } else if (response.status === 404) {
+                throw new Error('Google Sheet not found. Please check the URL.');
+            } else {
+                throw new Error(`Failed to load Google Sheet (Error ${response.status})`);
+            }
+        }
+
+        // Get the text content
+        const text = await response.text();
+
+        // Parse the 5-column CSV format
+        parseGoogleSheetsData(text);
+
+    } catch (error) {
+        console.error('Error loading Google Sheets:', error);
+        showDataSourceError(error.message);
+    }
+}
+
+function parseGoogleSheetsData(text) {
+    try {
+        // Parse CSV content
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+
+        if (lines.length < 2) {
+            throw new Error('Google Sheet appears to be empty or has no data rows.');
+        }
+
+        const header = lines[0].toLowerCase();
+        const dataLines = lines.slice(1);
+
+        // Check for required columns
+        const requiredColumns = ['word', 'description'];
+        const hasRequiredColumns = requiredColumns.every(col => header.includes(col));
+
+        if (!hasRequiredColumns) {
+            throw new Error('Google Sheet must contain at least "word" and "description" columns.');
+        }
+
+        // Parse each line
+        allWords = [];
+        allDescriptions = [];
+        allExampleSentences = [];
+        allWordData = [];
+
+        dataLines.forEach((line, index) => {
+            try {
+                const parsed = parseCSVLine(line);
+                if (parsed.length >= 6) {
+                    // 6-column format: word, date, grade, source, example sentence, description
+                    const word = parsed[0].trim();
+                    const date = parsed[1].trim();
+                    const grade = parsed[2].trim();
+                    const source = parsed[3].trim();
+                    const exampleSentence = parsed[4].trim();
+                    const description = parsed[5].trim();
+
+                    if (word && exampleSentence) {
+                        allWords.push(word.toLowerCase());
+                        allExampleSentences.push(exampleSentence);
+                        allDescriptions.push(description); // Keep for future use
+                        allWordData.push({
+                            word: word.toLowerCase(),
+                            date: date,
+                            grade: grade,
+                            source: source,
+                            exampleSentence: exampleSentence,
+                            description: description
+                        });
+                    }
+                } else if (parsed.length >= 5) {
+                    // 5-column format: word, date, grade, source, description (legacy)
+                    const word = parsed[0].trim();
+                    const date = parsed[1].trim();
+                    const grade = parsed[2].trim();
+                    const source = parsed[3].trim();
+                    const description = parsed[4].trim();
+
+                    if (word && description) {
+                        allWords.push(word.toLowerCase());
+                        allExampleSentences.push(''); // No example sentence
+                        allDescriptions.push(description);
+                        allWordData.push({
+                            word: word.toLowerCase(),
+                            date: date,
+                            grade: grade,
+                            source: source,
+                            exampleSentence: '',
+                            description: description
+                        });
+                    }
+                } else if (parsed.length >= 2) {
+                    // Fallback to 2-column format: word, description
+                    const word = parsed[0].trim();
+                    const description = parsed[1].trim();
+
+                    if (word && description) {
+                        allWords.push(word.toLowerCase());
+                        allExampleSentences.push(''); // No example sentence
+                        allDescriptions.push(description);
+                        allWordData.push({
+                            word: word.toLowerCase(),
+                            date: '',
+                            grade: '',
+                            source: '',
+                            exampleSentence: '',
+                            description: description
+                        });
+                    }
+                }
+            } catch (lineError) {
+                console.warn(`Error parsing line ${index + 2}:`, lineError);
+            }
+        });
+
+        if (allWords.length === 0) {
+            throw new Error('No valid word entries found in the Google Sheet.');
+        }
+
+        // Extract available grades and sources for filtering
+        extractFilterOptions();
+
+        // Show success and proceed to level selection
+        showWordCountAndLevelSelection();
+
+    } catch (error) {
+        throw new Error(`Error parsing Google Sheets data: ${error.message}`);
+    }
+}
+
+function showDataSourceError(message) {
+    const contentDiv = document.getElementById('content');
+    contentDiv.innerHTML = `
+        <div class="error">
+            <h2>❌ Loading Failed</h2>
+            <p>${message}</p>
+            <button class="start-button" onclick="goBackToDataSource()" style="margin-top: 20px;">
+                Try Again
+            </button>
+        </div>
+    `;
+}
+
+function goBackToDataSource() {
+    document.getElementById('content').style.display = 'none';
+    document.getElementById('data-source-selection').style.display = 'block';
+}
+
+// Filter functions
+function extractFilterOptions() {
+    availableGrades = [];
+    availableSources = [];
+
+    allWordData.forEach(wordData => {
+        if (wordData.grade && !availableGrades.includes(wordData.grade)) {
+            availableGrades.push(wordData.grade);
+        }
+        if (wordData.source && !availableSources.includes(wordData.source)) {
+            availableSources.push(wordData.source);
+        }
+    });
+
+    // Sort for better UX
+    availableGrades.sort();
+    availableSources.sort();
+
+    // Initialize selections (all selected by default)
+    selectedGrades = [...availableGrades];
+    selectedSources = [...availableSources];
+
+    // Initialize filtered data with all words
+    applyFilters();
+}
+
+function applyFilters() {
+    filteredWordData = allWordData.filter(wordData => {
+        // Date filter
+        if (dateFrom && wordData.date && wordData.date < dateFrom) return false;
+        if (dateTo && wordData.date && wordData.date > dateTo) return false;
+
+        // Grade filter (only apply if grades exist and some are selected)
+        if (availableGrades.length > 0 && selectedGrades.length > 0) {
+            if (wordData.grade && !selectedGrades.includes(wordData.grade)) return false;
+        }
+
+        // Source filter (only apply if sources exist and some are selected)
+        if (availableSources.length > 0 && selectedSources.length > 0) {
+            if (wordData.source && !selectedSources.includes(wordData.source)) return false;
+        }
+
+        return true;
+    });
+
+    // Update the arrays used by the game
+    allWords = filteredWordData.map(data => data.word);
+    allDescriptions = filteredWordData.map(data => data.description);
+    allExampleSentences = filteredWordData.map(data => data.exampleSentence || '');
+
+    // Update word count display
+    updateWordCountDisplay();
+}
+
+function updateWordCountDisplay() {
+    const wordCount = allWords.length;
+    const contentDiv = document.getElementById('content');
+
+    if (contentDiv) {
+        contentDiv.innerHTML = `
+            <div>Filtered words:</div>
+            <div class="word-count">${wordCount}</div>
+        `;
+    }
+
+    // Update word count selection if needed
+    if (wordCount > 30) {
+        const wordCountSelection = document.getElementById('word-count-selection');
+        if (wordCountSelection) {
+            wordCountSelection.style.display = 'block';
+            document.getElementById('total-words-count').textContent = wordCount;
+
+            const wordCountInput = document.getElementById('word-count-input');
+            wordCountInput.value = Math.min(30, wordCount);
+            wordCountInput.max = wordCount;
+            selectedWordCount = parseInt(wordCountInput.value);
+        }
+    } else {
+        selectedWordCount = wordCount;
+        const wordCountSelection = document.getElementById('word-count-selection');
+        if (wordCountSelection) {
+            wordCountSelection.style.display = 'none';
+        }
+    }
+}
+
+function setupFilters() {
+    // Only show filters if we have data that can be filtered
+    const hasFilterableData = availableGrades.length > 0 || availableSources.length > 0;
+
+    if (!hasFilterableData) {
+        document.getElementById('word-filters').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('word-filters').style.display = 'block';
+
+    // Setup date filters
+    const dateFromInput = document.getElementById('date-from');
+    const dateToInput = document.getElementById('date-to');
+
+    if (dateFromInput) {
+        dateFromInput.addEventListener('change', function() {
+            dateFrom = this.value;
+            applyFilters();
+        });
+    }
+
+    if (dateToInput) {
+        dateToInput.addEventListener('change', function() {
+            dateTo = this.value;
+            applyFilters();
+        });
+    }
+
+    // Setup grade filters
+    setupMultiSelect('grade-filters', availableGrades, selectedGrades, function(newSelection) {
+        selectedGrades = newSelection;
+        applyFilters();
+    });
+
+    // Setup source filters
+    setupMultiSelect('source-filters', availableSources, selectedSources, function(newSelection) {
+        selectedSources = newSelection;
+        applyFilters();
+    });
+}
+
+function setupMultiSelect(containerId, options, selected, onChangeCallback) {
+    const container = document.getElementById(containerId);
+    if (!container || options.length === 0) {
+        if (container) container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    container.innerHTML = '';
+
+    options.forEach(option => {
+        const label = document.createElement('label');
+        label.className = 'filter-checkbox';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = option;
+        checkbox.checked = selected.includes(option);
+
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selected.includes(option)) {
+                    selected.push(option);
+                }
+            } else {
+                const index = selected.indexOf(option);
+                if (index > -1) {
+                    selected.splice(index, 1);
+                }
+            }
+            onChangeCallback([...selected]);
+        });
+
+        const span = document.createElement('span');
+        span.textContent = option;
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        container.appendChild(label);
+    });
+}
+
+function resetFilters() {
+    // Reset date filters
+    dateFrom = '';
+    dateTo = '';
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value = '';
+
+    // Reset grade and source selections
+    selectedGrades = [...availableGrades];
+    selectedSources = [...availableSources];
+
+    // Update checkboxes
+    document.querySelectorAll('#grade-filters input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    document.querySelectorAll('#source-filters input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+
+    // Apply filters
+    applyFilters();
+}
+
+// Function to hide the target word in the example sentence
+function hideWordInSentence(sentence, targetWord) {
+    if (!sentence || !targetWord) {
+        return sentence || '';
+    }
+
+    // Create a regex to find the word (case insensitive, whole word)
+    const regex = new RegExp(`\\b${targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+
+    // Replace the word with underscores of the same length
+    return sentence.replace(regex, (match) => {
+        return '_'.repeat(match.length);
+    });
+}
 
 // Proper CSV parsing function that handles commas within quoted fields
 function parseCSVLine(line) {
@@ -203,8 +716,13 @@ function focusAppropriateInput() {
     allInputs[0].focus();
 }
 
-async function loadAndCountWords() {
+// Load words from local CSV file
+async function loadLocalCSV() {
+    // Show loading state
+    document.getElementById('data-source-selection').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
     const contentDiv = document.getElementById('content');
+    contentDiv.innerHTML = '<div class="loading">Loading from local file...</div>';
 
     try {
         // Fetch the words.csv file
@@ -225,6 +743,8 @@ async function loadAndCountWords() {
         // Parse each line
         allWords = [];
         allDescriptions = [];
+        allExampleSentences = [];
+        allWordData = [];
 
         dataLines.forEach(line => {
             const parsed = parseCSVLine(line);
@@ -233,49 +753,62 @@ async function loadAndCountWords() {
                 const description = parsed[1].trim();
                 if (word && description) {
                     allWords.push(word.toLowerCase());
+                    allExampleSentences.push(''); // Local CSV doesn't have example sentences
                     allDescriptions.push(description);
+                    allWordData.push({
+                        word: word.toLowerCase(),
+                        date: '',
+                        grade: '',
+                        source: '',
+                        exampleSentence: '',
+                        description: description
+                    });
                 }
             }
         });
 
-        // Count the words
-        const wordCount = allWords.length;
-
-        // Display the result and show level selection
-        contentDiv.innerHTML = `
-            <div>Total number of words:</div>
-            <div class="word-count">${wordCount}</div>
-        `;
-
-        // Show word count selection if more than 30 words
-        if (wordCount > 30) {
-            document.getElementById('word-count-selection').style.display = 'block';
-            document.getElementById('total-words-count').textContent = wordCount;
-
-            // Set max value for input and update default if needed
-            const wordCountInput = document.getElementById('word-count-input');
-            wordCountInput.max = wordCount;
-
-            // Update input event listener
-            wordCountInput.addEventListener('input', function() {
-                selectedWordCount = Math.min(Math.max(1, parseInt(this.value) || 1), wordCount);
-                this.value = selectedWordCount;
-            });
-        } else {
-            // For 30 or fewer words, use all words
-            selectedWordCount = wordCount;
+        if (allWords.length === 0) {
+            throw new Error('No valid word entries found in words.csv');
         }
 
-        // Show level selection
-        document.getElementById('level-selection').style.display = 'block';
+        // Extract available grades and sources for filtering
+        extractFilterOptions();
+
+        // Show success and proceed to level selection
+        showWordCountAndLevelSelection();
 
     } catch (error) {
         console.error('Error loading words:', error);
-        contentDiv.innerHTML = `
-            <div class="error">
-                Error loading words.csv: ${error.message}
-            </div>
-        `;
+        showDataSourceError(`Error loading words.csv: ${error.message}`);
+    }
+}
+
+// Common function to show word count and level selection
+function showWordCountAndLevelSelection() {
+    updateWordCountDisplay();
+
+    // Show level selection
+    document.getElementById('level-selection').style.display = 'block';
+
+    // Setup filters
+    setupFilters();
+
+    // Setup word count selection event listeners
+    const wordCount = allWords.length;
+    if (wordCount > 30) {
+        const wordCountInput = document.getElementById('word-count-input');
+        if (wordCountInput) {
+            // Remove existing event listeners to avoid duplicates
+            const newInput = wordCountInput.cloneNode(true);
+            wordCountInput.parentNode.replaceChild(newInput, wordCountInput);
+
+            // Add event listener for word count changes
+            newInput.addEventListener('input', function() {
+                selectedWordCount = parseInt(this.value) || 1;
+                selectedWordCount = Math.max(1, Math.min(selectedWordCount, allWords.length));
+                this.value = selectedWordCount;
+            });
+        }
     }
 }
 
@@ -360,18 +893,20 @@ function startGame() {
     document.getElementById('game-interface').style.display = 'block';
     document.getElementById('final-results').style.display = 'none';
 
-    // Initialize game state - shuffle words and descriptions together
-    const wordDescriptionPairs = allWords.map((word, index) => ({
+    // Initialize game state - shuffle words, descriptions, and example sentences together
+    const wordDataPairs = allWords.map((word, index) => ({
         word: word,
-        description: allDescriptions[index]
+        description: allDescriptions[index],
+        exampleSentence: allExampleSentences[index]
     }));
 
-    const shuffledPairs = shuffleArray(wordDescriptionPairs);
+    const shuffledPairs = shuffleArray(wordDataPairs);
 
     // Use only the selected number of words
     const selectedPairs = shuffledPairs.slice(0, selectedWordCount);
     gameWords = selectedPairs.map(pair => pair.word);
     gameDescriptions = selectedPairs.map(pair => pair.description);
+    gameExampleSentences = selectedPairs.map(pair => pair.exampleSentence);
 
     currentWordIndex = 0;
     correctAnswers = 0;
@@ -404,7 +939,8 @@ function startRetryGame() {
             if (originalWordIndex !== -1) {
                 retryPairs.push({
                     word: allWords[originalWordIndex],
-                    description: allDescriptions[originalWordIndex]
+                    description: allDescriptions[originalWordIndex],
+                    exampleSentence: allExampleSentences[originalWordIndex]
                 });
             }
         }
@@ -414,6 +950,7 @@ function startRetryGame() {
     const shuffledRetryPairs = shuffleArray(retryPairs);
     gameWords = shuffledRetryPairs.map(pair => pair.word);
     gameDescriptions = shuffledRetryPairs.map(pair => pair.description);
+    gameExampleSentences = shuffledRetryPairs.map(pair => pair.exampleSentence);
 
     currentWordIndex = 0;
     correctAnswers = 0;
@@ -435,6 +972,7 @@ function showNextWord() {
 
     currentWord = gameWords[currentWordIndex];
     currentDescription = gameDescriptions[currentWordIndex];
+    currentExampleSentence = gameExampleSentences[currentWordIndex];
     const wordData = createPartialWord(currentWord);
     missingLetters = wordData.missingLetters;
 
@@ -467,7 +1005,25 @@ function showNextWord() {
         `Retry Word ${currentWordIndex + 1} of ${totalWords}` :
         `Word ${currentWordIndex + 1} of ${totalWords}`;
     document.getElementById('progress').textContent = progressText;
-    document.getElementById('word-description').textContent = currentDescription;
+
+    // Show example sentence with hidden word, or description if no example sentence
+    if (currentExampleSentence && currentExampleSentence.trim() !== '') {
+        const hiddenSentence = hideWordInSentence(currentExampleSentence, currentWord);
+        document.getElementById('word-description').innerHTML = `
+            <div class="example-sentence">
+                <strong>📝 Example:</strong> ${hiddenSentence}
+            </div>
+        `;
+    } else if (currentDescription && currentDescription.trim() !== '') {
+        document.getElementById('word-description').innerHTML = `
+            <div class="word-description">
+                <strong>💡 Hint:</strong> ${currentDescription}
+            </div>
+        `;
+    } else {
+        document.getElementById('word-description').textContent = '';
+    }
+
     document.getElementById('feedback').textContent = '';
 
     // Reset focus tracking, waiting state, and processing flag for new word
@@ -645,15 +1201,12 @@ function restartGame() {
     // Remove retry keyboard shortcut
     removeRetryKeyboardShortcut();
 
-    // Reset and show main content and level selection
+    // Reset and show data source selection
     document.getElementById('final-results').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
-    document.getElementById('level-selection').style.display = 'block';
-
-    // Show word count selection if it was shown before (more than 30 words)
-    if (allWords.length > 30) {
-        document.getElementById('word-count-selection').style.display = 'block';
-    }
+    document.getElementById('content').style.display = 'none';
+    document.getElementById('level-selection').style.display = 'none';
+    document.getElementById('word-count-selection').style.display = 'none';
+    document.getElementById('data-source-selection').style.display = 'block';
 }
 
 // Add keyboard shortcut for retry functionality
@@ -685,5 +1238,5 @@ function handleRetryKeydown(event) {
     }
 }
 
-// Load and count words when the page loads
-document.addEventListener('DOMContentLoaded', loadAndCountWords);
+// Initialize data source selection when the page loads
+document.addEventListener('DOMContentLoaded', setupDataSourceSelection);
