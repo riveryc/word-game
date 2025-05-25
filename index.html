@@ -149,6 +149,24 @@
             border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
+        .correct-feedback {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: rgba(144, 238, 144, 0.2);
+            border-radius: 10px;
+            border: 2px solid #90EE90;
+            animation: correctGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes correctGlow {
+            from {
+                box-shadow: 0 0 10px rgba(144, 238, 144, 0.5);
+            }
+            to {
+                box-shadow: 0 0 20px rgba(144, 238, 144, 0.8);
+            }
+        }
+
         @keyframes glow {
             from {
                 box-shadow: 0 0 10px #90EE90;
@@ -740,9 +758,9 @@
             <div class="word-display" id="word-display"></div>
             <div class="word-description" id="word-description"></div>
             <button class="repeat-button" id="repeat-button" onclick="repeatWord()">🔊 Repeat</button>
-            <div>Fill in the missing letters and press <strong>Enter</strong> to confirm</div>
+            <div>Fill in the missing letters and press <strong>Enter</strong> to check your answer</div>
             <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">
-                💡 Tip: Press <strong>Space bar</strong> to repeat the word
+                💡 Tips: Press <strong>Space bar</strong> to repeat the word • Press <strong>Enter</strong> to continue after each word
             </div>
             <div class="feedback" id="feedback"></div>
         </div>

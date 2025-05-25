@@ -1035,7 +1035,7 @@ function handleInlineKeydown(event) {
         }
 
         if (waitingForContinue) {
-            // Continue to next word after incorrect answer
+            // Continue to next word (works for both correct and incorrect answers now)
             isProcessing = true;
             waitingForContinue = false;
             currentWordIndex++;
@@ -1125,14 +1125,23 @@ function checkAnswer() {
         correctAnswers++;
         wordResults[currentWordIndex] = true; // Mark as correct
 
-        feedbackDiv.innerHTML = '<span class="correct">✓ Correct!</span>';
+        feedbackDiv.innerHTML = `
+            <div class="correct-feedback">
+                <span class="correct" style="font-size: 1.5em;">✓ Correct!</span><br>
+                <div style="margin-top: 15px; font-size: 1.2em;">
+                    Press <strong>Enter</strong> to continue to the next word
+                </div>
+            </div>
+        `;
         feedbackDiv.className = 'feedback correct';
 
-        // Move to next word after a short delay for correct answers
-        setTimeout(() => {
-            currentWordIndex++;
-            showNextWord();
-        }, 1000);
+        // Set waiting state - same as incorrect answers for consistency
+        waitingForContinue = true;
+
+        // Focus on first input to capture Enter
+        if (allInputs.length > 0) {
+            allInputs[0].focus();
+        }
     } else {
         // Incorrect answer - word stays marked as incorrect (false by default)
         const expectedWord = currentWord;
