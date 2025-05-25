@@ -1059,6 +1059,48 @@ function handleInlineKeydown(event) {
     }
 }
 
+// Function to create a visual comparison between user input and correct answer
+function createWordComparison(userAnswers, expectedWord) {
+    const allInputs = document.querySelectorAll('.inline-input');
+    const wordDisplayDiv = document.getElementById('word-display');
+
+    // Reconstruct the user's full attempted word
+    let userAttempt = '';
+    let inputIndex = 0;
+
+    // Go through each character in the word display to reconstruct user's attempt
+    for (let child of wordDisplayDiv.children) {
+        if (child.classList.contains('visible-letter')) {
+            // This was a visible letter, add it as-is
+            userAttempt += child.textContent.toLowerCase();
+        } else if (child.classList.contains('inline-input')) {
+            // This was an input field, add what the user typed (or empty if nothing)
+            userAttempt += (userAnswers[inputIndex] || '_').toLowerCase();
+            inputIndex++;
+        }
+    }
+
+    // Create highlighted comparison of the correct word
+    let correctWordHighlighted = '';
+    for (let i = 0; i < expectedWord.length; i++) {
+        const correctLetter = expectedWord[i].toLowerCase();
+        const userLetter = i < userAttempt.length ? userAttempt[i] : '_';
+
+        if (correctLetter === userLetter) {
+            // Correct letter - show in normal green
+            correctWordHighlighted += `<span style="color: #90EE90;">${expectedWord[i]}</span>`;
+        } else {
+            // Incorrect letter - show in bold red with larger size
+            correctWordHighlighted += `<span style="color: #FF6B6B; font-weight: bold; font-size: 1.2em; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);">${expectedWord[i]}</span>`;
+        }
+    }
+
+    return {
+        userAttempt: userAttempt.replace(/_/g, '?'), // Replace underscores with question marks for display
+        correctWordHighlighted: correctWordHighlighted
+    };
+}
+
 function checkAnswer() {
     // Don't process if we're already waiting for continue or processing
     if (waitingForContinue || isProcessing) {
@@ -1094,10 +1136,24 @@ function checkAnswer() {
     } else {
         // Incorrect answer - word stays marked as incorrect (false by default)
         const expectedWord = currentWord;
+        const comparison = createWordComparison(userAnswers, expectedWord);
+
         feedbackDiv.innerHTML = `
             <span class="incorrect">✗ Incorrect!</span><br>
-            <div class="correct-word-display">${expectedWord}</div>
-            <div style="margin-top: 15px;">Press <strong>Enter</strong> to continue to the next word</div>
+            <div class="comparison-section">
+                <div style="margin-bottom: 15px;">
+                    <strong>Your answer:</strong>
+                    <div class="user-answer-display">${comparison.userAttempt}</div>
+                </div>
+                <div>
+                    <strong>Correct answer:</strong>
+                    <div class="correct-word-display" style="letter-spacing: 3px;">${comparison.correctWordHighlighted}</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; font-size: 1.2em;">
+                <strong>💡 Red letters</strong> show where you made mistakes<br>
+                Press <strong>Enter</strong> to continue to the next word
+            </div>
         `;
         feedbackDiv.className = 'feedback incorrect';
 
