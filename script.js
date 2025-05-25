@@ -21,7 +21,7 @@ let lastFocusedInput = null; // Track the last focused input field
 let waitingForContinue = false; // Track if we're waiting for Enter to continue after incorrect answer
 let selectedLevel = 3; // Default to Level 3 (70% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
-let selectedWordCount = 30; // Default number of words to practice
+let selectedWordCount = 20; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
 
 // Data source variables
@@ -400,7 +400,7 @@ function updateWordCountDisplay() {
             document.getElementById('total-words-count').textContent = wordCount;
 
             const wordCountInput = document.getElementById('word-count-input');
-            wordCountInput.value = Math.min(30, wordCount);
+            wordCountInput.value = Math.min(20, wordCount);
             wordCountInput.max = wordCount;
             selectedWordCount = parseInt(wordCountInput.value);
         }
