@@ -322,6 +322,9 @@ function showDataSourceError(message) {
 function goBackToDataSource() {
     document.getElementById('content').style.display = 'none';
     document.getElementById('data-source-selection').style.display = 'block';
+
+    // Update back button visibility
+    updateBackButtonVisibility();
 }
 
 // Filter functions
@@ -751,6 +754,9 @@ function showWordCountAndLevelSelection() {
     // Show level selection
     document.getElementById('level-selection').style.display = 'block';
 
+    // Update back button visibility
+    updateBackButtonVisibility();
+
     // Setup filters
     setupFilters();
 
@@ -854,6 +860,9 @@ function startGame() {
     document.getElementById('game-interface').style.display = 'block';
     document.getElementById('final-results').style.display = 'none';
 
+    // Update back button visibility
+    updateBackButtonVisibility();
+
     // Initialize game state - shuffle words, descriptions, and example sentences together
     const wordDataPairs = allWords.map((word, index) => ({
         word: word,
@@ -890,6 +899,9 @@ function startRetryGame() {
     document.getElementById('level-selection').style.display = 'none';
     document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('game-interface').style.display = 'block';
+
+    // Update back button visibility
+    updateBackButtonVisibility();
 
     // Create retry game with words that were marked as incorrect
     const retryPairs = [];
@@ -1183,6 +1195,9 @@ function showFinalResults() {
     document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('final-results').style.display = 'block';
 
+    // Update back button visibility
+    updateBackButtonVisibility();
+
     // Count actual correct and incorrect words from the results array
     const actualCorrectCount = wordResults.filter(result => result === true).length;
     const actualIncorrectCount = wordResults.filter(result => result === false).length;
@@ -1233,6 +1248,9 @@ function restartGame() {
     document.getElementById('level-selection').style.display = 'none';
     document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('data-source-selection').style.display = 'block';
+
+    // Update back button visibility
+    updateBackButtonVisibility();
 }
 
 // Add keyboard shortcut for retry functionality
@@ -1264,5 +1282,155 @@ function handleRetryKeydown(event) {
     }
 }
 
+// Back button and confirmation dialog functionality
+let confirmationSelection = 'no'; // Default to 'no'
+
+// Show/hide back button based on current screen
+function updateBackButtonVisibility() {
+    const backButton = document.getElementById('back-button');
+    const gameInterface = document.getElementById('game-interface');
+    const levelSelection = document.getElementById('level-selection');
+    const finalResults = document.getElementById('final-results');
+
+    // Show back button when in game interface, level selection, or final results
+    const shouldShow = (gameInterface && gameInterface.style.display === 'block') ||
+                      (levelSelection && levelSelection.style.display === 'block') ||
+                      (finalResults && finalResults.style.display === 'block');
+
+    if (backButton) {
+        backButton.style.display = shouldShow ? 'flex' : 'none';
+    }
+}
+
+// Show exit confirmation dialog
+function showExitConfirmation() {
+    const overlay = document.getElementById('confirmation-overlay');
+    if (overlay) {
+        confirmationSelection = 'no'; // Reset to default
+        updateConfirmationSelection();
+        overlay.style.display = 'flex';
+
+        // Focus on the dialog for keyboard navigation
+        const noButton = document.getElementById('no-button');
+        if (noButton) {
+            noButton.focus();
+        }
+    }
+}
+
+// Hide exit confirmation dialog
+function hideExitConfirmation() {
+    const overlay = document.getElementById('confirmation-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Select confirmation option (yes/no)
+function selectConfirmationOption(option) {
+    confirmationSelection = option;
+    updateConfirmationSelection();
+}
+
+// Update visual selection of confirmation buttons
+function updateConfirmationSelection() {
+    const noButton = document.getElementById('no-button');
+    const yesButton = document.getElementById('yes-button');
+
+    if (noButton && yesButton) {
+        noButton.classList.toggle('selected', confirmationSelection === 'no');
+        yesButton.classList.toggle('selected', confirmationSelection === 'yes');
+    }
+}
+
+// Confirm the selected option
+function confirmExitSelection() {
+    if (confirmationSelection === 'yes') {
+        // Exit to main menu
+        hideExitConfirmation();
+        exitToMainMenu();
+    } else {
+        // Stay in game
+        hideExitConfirmation();
+    }
+}
+
+// Exit to main menu function
+function exitToMainMenu() {
+    // Remove any existing keyboard shortcuts
+    removeRetryKeyboardShortcut();
+
+    // Hide all game screens
+    document.getElementById('game-interface').style.display = 'none';
+    document.getElementById('level-selection').style.display = 'none';
+    document.getElementById('final-results').style.display = 'none';
+    document.getElementById('content').style.display = 'none';
+    document.getElementById('word-count-selection').style.display = 'none';
+
+    // Show data source selection (main menu)
+    document.getElementById('data-source-selection').style.display = 'block';
+
+    // Update back button visibility
+    updateBackButtonVisibility();
+
+    // Reset game state
+    currentWordIndex = 0;
+    correctAnswers = 0;
+    isRetryMode = false;
+    waitingForContinue = false;
+    isProcessing = false;
+    lastFocusedInput = null;
+}
+
+// Global keyboard event handler
+function handleGlobalKeydown(event) {
+    const overlay = document.getElementById('confirmation-overlay');
+    const isConfirmationVisible = overlay && overlay.style.display === 'flex';
+
+    if (isConfirmationVisible) {
+        // Handle keyboard navigation in confirmation dialog
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            event.preventDefault();
+            confirmationSelection = confirmationSelection === 'no' ? 'yes' : 'no';
+            updateConfirmationSelection();
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            confirmExitSelection();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            hideExitConfirmation();
+        }
+    } else {
+        // Handle ESC key to show confirmation dialog
+        if (event.key === 'Escape') {
+            const gameInterface = document.getElementById('game-interface');
+            const levelSelection = document.getElementById('level-selection');
+            const finalResults = document.getElementById('final-results');
+
+            // Only show confirmation if we're in a screen that has the back button
+            const shouldShowConfirmation = (gameInterface && gameInterface.style.display === 'block') ||
+                                         (levelSelection && levelSelection.style.display === 'block') ||
+                                         (finalResults && finalResults.style.display === 'block');
+
+            if (shouldShowConfirmation) {
+                event.preventDefault();
+                showExitConfirmation();
+            }
+        }
+    }
+}
+
+// Initialize back button and confirmation dialog when the page loads
+function initializeBackButton() {
+    // Add global keyboard event listener
+    document.addEventListener('keydown', handleGlobalKeydown);
+
+    // Update back button visibility initially
+    updateBackButtonVisibility();
+}
+
 // Initialize data source selection when the page loads
-document.addEventListener('DOMContentLoaded', setupDataSourceSelection);
+document.addEventListener('DOMContentLoaded', function() {
+    setupDataSourceSelection();
+    initializeBackButton();
+});
