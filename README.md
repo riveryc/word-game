@@ -7,7 +7,9 @@ A fun and educational web-based spelling game designed for young learners. Kids 
 ### 🎮 Core Gameplay
 - **Interactive Spelling**: Fill in missing letters directly within the word display
 - **Professional Audio**: High-quality dictionary pronunciation from internet with US preference + computer voice fallback
-- **Smart Hints**: Descriptive clues help kids understand word meanings
+- **Smart Hints**: Example sentences with target word hidden for contextual learning
+- **Visual Error Comparison**: See exactly which letters were wrong with highlighted differences
+- **Unified Enter Controls**: Consistent Enter-to-continue for both correct and incorrect answers
 
 ### 🎚️ Difficulty Levels
 Choose from 6 difficulty levels:
@@ -19,15 +21,19 @@ Choose from 6 difficulty levels:
 - **🔥 NIGHTMARE 🔥**: 100% missing letters (ultimate challenge!)
 
 ### 📚 Educational Features
-- **Vocabulary Building**: Each word includes a helpful description with proper CSV parsing
+- **Dual Data Sources**: Local CSV files or Google Sheets with advanced filtering
+- **Contextual Learning**: Example sentences with target word hidden for better understanding
+- **Visual Error Analysis**: Side-by-side comparison showing user's attempt vs. correct spelling
+- **Smart Mistake Highlighting**: Incorrect letters highlighted in bold red for easy identification
 - **Internet-Based Audio**: Crystal-clear pronunciation from online dictionary API (dictionaryapi.dev) with smart caching
 - **Enhanced Mistake Learning**: Big, glowing display of correct spelling for better memory retention
 - **Bulletproof Retry System**: Practice only words you got wrong - no cheating possible!
 - **Word Count Selection**: Choose how many words to practice (appears for 30+ word lists)
+- **Advanced Filtering**: Filter by date range, grade, and source (Google Sheets only)
 
 ### ⌨️ Full Keyboard Control
 - **Space Bar**: Repeat word audio (no mouse needed!)
-- **Enter**: Submit answers, continue after mistakes, retry incorrect words on results page
+- **Enter**: Submit answers AND continue after both correct and incorrect answers
 - **Backspace**: Navigate between input fields
 - **Complete keyboard workflow**: Play entire game without touching mouse
 
@@ -35,6 +41,7 @@ Choose from 6 difficulty levels:
 - **Clean Interface**: Removed clutter, streamlined design focused on learning
 - **Superior Audio Quality**: Internet-based pronunciation much clearer than computer voice, with instant cached replay
 - **Auto-Focus**: Smart input field management with focus restoration
+- **Visual Feedback**: Animated correct answers with green glow, detailed error comparisons
 - **Responsive**: Works on desktop and mobile devices
 - **Robust CSV Support**: Handles commas in descriptions properly
 
@@ -96,9 +103,9 @@ Choose from 6 difficulty levels:
 
 ### 5. **Submit Your Answer**
 - Press **Enter** when ready to check spelling
-- ✅ Correct answers move on automatically
-- ❌ Incorrect answers show big, bright correct spelling
-- Press **Enter** again to continue when ready
+- ✅ **Correct answers**: See green glowing "Correct!" message
+- ❌ **Incorrect answers**: See side-by-side comparison with highlighted differences
+- **Always press Enter again** to continue to the next word (consistent for both correct and incorrect)
 
 ### 6. **Review & Retry**
 - See your final score with clean progress display
@@ -119,14 +126,16 @@ word_game/
 ## 📝 Customizing Words
 
 ### Local CSV File
-Edit `words.csv` to add your own words with proper CSV format:
+Edit `words.csv` to add your own words with the 6-column format:
 
 ```csv
-word,description
-cat,A small furry animal that says meow
-dog,"A friendly animal that barks, wags its tail, and loves to play"
-elephant,"A huge, gray animal with a long trunk and big ears"
+word,date,grade,source,Example sentence,description
+cat,2024-01-15,2,phonics,The cat sat on the mat,A small furry animal that says meow
+dog,2024-01-15,2,phonics,"My dog loves to play fetch, and he wags his tail",A friendly animal that barks and loves to play
+elephant,2024-01-16,3,animals,The elephant has a long trunk and big ears,A huge gray animal
 ```
+
+**Note**: The local CSV now uses the same 6-column format as Google Sheets for consistent filtering and features.
 
 ### Google Sheets Integration
 Use Google Sheets for collaborative word management:
@@ -169,11 +178,13 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 
 ### For Kids:
 - **Enhanced Spelling Practice**: Reinforces correct letter patterns with visual memory
-- **Vocabulary Growth**: Learn word meanings through detailed descriptions
+- **Vocabulary Growth**: Learn word meanings through contextual example sentences
 - **Phonics Skills**: High-quality audio helps with sound-letter relationships
+- **Visual Learning**: See exactly which letters were wrong with highlighted comparisons
 - **Confidence Building**: Progressive difficulty and comprehensive retry system
-- **Self-Paced Learning**: No time pressure, learn at your own speed
+- **Self-Paced Learning**: No time pressure, consistent Enter-to-continue controls
 - **Keyboard Skills**: Full keyboard control builds typing confidence
+- **Mistake Analysis**: Clear visual feedback helps understand and remember corrections
 
 ### For Parents/Teachers:
 - **Adaptive Difficulty**: Adjust challenge level as skills improve
@@ -184,11 +195,11 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 
 ## 🛠️ Technical Features
 
-- **Dual Data Sources**: Choose between local CSV files or Google Sheets integration
-- **Google Sheets Integration**: Load words directly from public Google Sheets with 6-column support
+- **Unified Data Processing**: Both local CSV and Google Sheets use identical parsing for consistent experience
 - **Example Sentences**: Contextual learning with target word hidden in example sentences
+- **Visual Error Analysis**: Side-by-side comparison with highlighted incorrect letters
 - **Pre-configured Sample**: Comes with a ready-to-use Google Sheet for immediate play
-- **Advanced Filtering**: Filter words by date range, grade, and source (Google Sheets only)
+- **Advanced Filtering**: Filter words by date range, grade, and source (works for both data sources)
 - **Real-time Updates**: Word count and selections update instantly as filters change
 - **Internet-Based Audio**: Dictionary API (dictionaryapi.dev) with US pronunciation preference for superior quality
 - **Smart Audio System**: 3-second timeout with instant fallback to computer voice if internet unavailable
@@ -216,11 +227,11 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 - Smart fallback to computer speech with adjustable rate, pitch, and volume
 - Cached for performance with 3-second timeout for reliability
 
-## 🐛 Known behavior
+## 🐛 Known Behavior & Bug Fixes
 
-- **Comprehensive Retry**: Continuos enter will result skipping words, but any skipped words are marked incorrect and must be retried
 - **Smart Audio Fallback**: Seamlessly switches to computer voice if internet/dictionary API unavailable
 - **CSV Flexibility**: Supports both simple and complex description formats
+- **Consistent Experience**: Local and online data sources now have identical functionality
 
 ## 🔧 Network Troubleshooting
 
@@ -278,6 +289,13 @@ Created with love for young learners everywhere! Special thanks to:
 **Happy Spelling!** 📚✨🎯
 
 ### 🔄 Version History
+- **v2.6**: Unified Enter-to-continue logic and visual error comparison system
+  - ✅ Fixed skip-word bug with consistent Enter controls for all answers
+  - ✅ Added side-by-side comparison showing user attempt vs. correct spelling
+  - ✅ Highlighted incorrect letters in bold red for easy identification
+  - ✅ Unified data processing for local CSV and Google Sheets
+  - ✅ Enhanced visual feedback with animated correct answer displays
+- **v2.5**: Unified data source parsing for consistent local/online experience
 - **v2.4**: Example sentence support with hidden target words for contextual learning
 - **v2.3**: Network accessibility and pre-filled default Google Sheets URL
 - **v2.2**: Advanced filtering system for Google Sheets (date, grade, source filters)
