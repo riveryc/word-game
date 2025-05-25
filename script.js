@@ -7,7 +7,7 @@ let filteredWordData = []; // Filtered word data based on user selection
 let gameWords = [];
 let gameDescriptions = [];
 let gameExampleSentences = []; // New: example sentences for game words
-let wordResults = []; // Track result for each word: true = correct, false = incorrect
+let wordResults = []; // Track result for each word: enhanced with timing data
 let currentWordIndex = 0;
 let currentWord = '';
 let currentDescription = '';
@@ -23,6 +23,15 @@ let selectedLevel = 3; // Default to Level 3 (70% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 20; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
+
+// Timer system variables
+let timeoutThreshold = 15; // Default 15 seconds
+let hasTimeLimit = true; // false when timeout = 0
+let showTimerDisplay = false; // Whether to show elapsed timer to user
+let currentWordStartTime = null; // When the current word started
+let currentWordTimer = null; // Timer interval for updating display
+let timeElapsed = 0; // Current elapsed time in seconds
+let wordRetryData = []; // Enhanced retry tracking: {word, reason, attempts, maxAttempts, originalIndex}
 
 // Data source variables
 let currentDataSource = 'local'; // 'local' or 'google'
@@ -852,6 +861,30 @@ function createPartialWord(word) {
     return { wordStructure, missingLetters };
 }
 
+function addWordToRetryList(wordIndex, reason, maxAttempts) {
+    // Check if word is already in retry list
+    const existingEntry = wordRetryData.find(entry => entry.originalIndex === wordIndex);
+
+    if (existingEntry) {
+        // Update existing entry if this is a worse result
+        if (reason === 'incorrect' && existingEntry.reason === 'timeout') {
+            existingEntry.reason = 'incorrect';
+            existingEntry.maxAttempts = 2;
+        }
+    } else {
+        // Add new entry
+        wordRetryData.push({
+            word: gameWords[wordIndex],
+            description: gameDescriptions[wordIndex],
+            exampleSentence: gameExampleSentences[wordIndex],
+            reason: reason,
+            attempts: 0,
+            maxAttempts: maxAttempts,
+            originalIndex: wordIndex
+        });
+    }
+}
+
 function startGame() {
     // Hide the main content, level selection, word count selection and show game interface
     document.getElementById('content').style.display = 'none';
@@ -883,8 +916,15 @@ function startGame() {
     totalWords = gameWords.length;
     isRetryMode = false;
 
-    // Initialize all words as incorrect by default
-    wordResults = new Array(gameWords.length).fill(false);
+    // Initialize enhanced word results tracking
+    wordResults = new Array(gameWords.length).fill(null).map(() => ({
+        correct: false,
+        timeElapsed: 0,
+        result: 'pending'
+    }));
+
+    // Clear retry data
+    wordRetryData = [];
 
     // Start the first word
     showNextWord();
@@ -903,35 +943,45 @@ function startRetryGame() {
     // Update back button visibility
     updateBackButtonVisibility();
 
-    // Create retry game with words that were marked as incorrect
-    const retryPairs = [];
-    for (let i = 0; i < wordResults.length; i++) {
-        if (wordResults[i] === false) {
-            // Find the original word index in the shuffled game
-            const originalWordIndex = allWords.indexOf(gameWords[i]);
-            if (originalWordIndex !== -1) {
-                retryPairs.push({
-                    word: allWords[originalWordIndex],
-                    description: allDescriptions[originalWordIndex],
-                    exampleSentence: allExampleSentences[originalWordIndex]
-                });
-            }
+    // Create retry game from wordRetryData
+    const retryWords = [];
+
+    // Process each word in retry list based on attempts vs maxAttempts
+    for (const retryEntry of wordRetryData) {
+        const attemptsNeeded = retryEntry.maxAttempts - retryEntry.attempts;
+
+        // Add the word multiple times based on how many attempts are needed
+        for (let i = 0; i < attemptsNeeded; i++) {
+            retryWords.push({
+                word: retryEntry.word,
+                description: retryEntry.description,
+                exampleSentence: retryEntry.exampleSentence,
+                retryReason: retryEntry.reason,
+                originalIndex: retryEntry.originalIndex
+            });
         }
     }
 
-    // Shuffle the incorrect words
-    const shuffledRetryPairs = shuffleArray(retryPairs);
-    gameWords = shuffledRetryPairs.map(pair => pair.word);
-    gameDescriptions = shuffledRetryPairs.map(pair => pair.description);
-    gameExampleSentences = shuffledRetryPairs.map(pair => pair.exampleSentence);
+    // Shuffle the retry words
+    const shuffledRetryWords = shuffleArray(retryWords);
+    gameWords = shuffledRetryWords.map(item => item.word);
+    gameDescriptions = shuffledRetryWords.map(item => item.description);
+    gameExampleSentences = shuffledRetryWords.map(item => item.exampleSentence);
 
     currentWordIndex = 0;
     correctAnswers = 0;
     totalWords = gameWords.length;
     isRetryMode = true;
 
-    // Initialize all retry words as incorrect by default
-    wordResults = new Array(gameWords.length).fill(false);
+    // Initialize enhanced word results tracking for retry
+    wordResults = new Array(gameWords.length).fill(null).map(() => ({
+        correct: false,
+        timeElapsed: 0,
+        result: 'pending'
+    }));
+
+    // Clear retry data for this retry session
+    wordRetryData = [];
 
     // Start the first word
     showNextWord();
@@ -1006,6 +1056,9 @@ function showNextWord() {
 
     // Speak the word
     speakWord(currentWord);
+
+    // Start the timer for this word
+    startWordTimer();
 
     // Focus on first input field
     const firstInput = wordDisplayDiv.querySelector('.inline-input');
@@ -1119,6 +1172,9 @@ function checkAnswer() {
         return;
     }
 
+    // Stop the timer and get final elapsed time
+    const finalTimeElapsed = stopWordTimer();
+
     const allInputs = document.querySelectorAll('.inline-input');
     const userAnswers = Array.from(allInputs).map(input => input.value.toLowerCase().trim());
     const feedbackDiv = document.getElementById('feedback');
@@ -1126,20 +1182,33 @@ function checkAnswer() {
     // Check if all inputs are filled
     if (userAnswers.some(answer => answer === '')) {
         feedbackDiv.innerHTML = '<span class="incorrect">Please fill in all the missing letters!</span>';
+        // DON'T restart timer - let it continue running so time accumulates properly
         return;
     }
 
     // Compare with expected answers
     const isCorrect = userAnswers.every((answer, index) => answer === missingLetters[index]);
 
-    if (isCorrect) {
-        // Correct answer - mark this word as correct and increment counter
+    // Evaluate answer with timing
+    const result = evaluateAnswerWithTiming(isCorrect, finalTimeElapsed);
+
+    // Store enhanced result data
+    wordResults[currentWordIndex] = {
+        correct: isCorrect,
+        timeElapsed: finalTimeElapsed,
+        result: result
+    };
+
+    if (result === 'success') {
+        // Perfect answer - correct and within time limit
         correctAnswers++;
-        wordResults[currentWordIndex] = true; // Mark as correct
 
         feedbackDiv.innerHTML = `
             <div class="correct-feedback">
-                <span class="correct" style="font-size: 1.5em;">✓ Correct!</span><br>
+                <span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br>
+                <div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">
+                    Completed in ${finalTimeElapsed.toFixed(1)}s
+                </div>
                 <div style="margin-top: 15px; font-size: 1.2em;">
                     Press <strong>Enter</strong> to continue to the next word
                 </div>
@@ -1147,20 +1216,40 @@ function checkAnswer() {
         `;
         feedbackDiv.className = 'feedback correct';
 
-        // Set waiting state - same as incorrect answers for consistency
-        waitingForContinue = true;
+    } else if (result === 'timeout') {
+        // Correct but too slow - add to retry list
+        addWordToRetryList(currentWordIndex, 'timeout', 1);
 
-        // Focus on first input to capture Enter
-        if (allInputs.length > 0) {
-            allInputs[0].focus();
-        }
-    } else {
-        // Incorrect answer - word stays marked as incorrect (false by default)
+        feedbackDiv.innerHTML = `
+            <div class="correct-feedback">
+                <span class="correct" style="font-size: 1.5em;">✅ Correct!</span><br>
+                <span style="color: #FFD700; font-size: 1.2em;">⚠️ But took too long</span><br>
+                <div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">
+                    Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${timeoutThreshold}s)
+                </div>
+                <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
+                    This word will be retried once for speed practice
+                </div>
+                <div style="margin-top: 15px; font-size: 1.2em;">
+                    Press <strong>Enter</strong> to continue to the next word
+                </div>
+            </div>
+        `;
+        feedbackDiv.className = 'feedback correct';
+
+    } else if (result === 'timeout_incorrect') {
+        // Wrong AND slow - add to retry list with 2 attempts (worst case)
+        addWordToRetryList(currentWordIndex, 'incorrect', 2);
+
         const expectedWord = currentWord;
         const comparison = createWordComparison(userAnswers, expectedWord);
 
         feedbackDiv.innerHTML = `
-            <span class="incorrect">✗ Incorrect!</span><br>
+            <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect!</span><br>
+            <span style="color: #FFD700; font-size: 1.1em;">⚠️ And took too long</span><br>
+            <div style="margin-top: 10px; font-size: 1.1em; color: #FFB6C1;">
+                Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${timeoutThreshold}s)
+            </div>
             <div class="comparison-section">
                 <div style="margin-bottom: 15px;">
                     <strong>Your answer:</strong>
@@ -1171,6 +1260,9 @@ function checkAnswer() {
                     <div class="correct-word-display" style="letter-spacing: 3px;">${comparison.correctWordHighlighted}</div>
                 </div>
             </div>
+            <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
+                This word will be retried twice (accuracy + speed practice)
+            </div>
             <div style="margin-top: 15px; font-size: 1.2em;">
                 <strong>💡 Red letters</strong> show where you made mistakes<br>
                 Press <strong>Enter</strong> to continue to the next word
@@ -1178,14 +1270,45 @@ function checkAnswer() {
         `;
         feedbackDiv.className = 'feedback incorrect';
 
-        // Set waiting state - this prevents auto-progression
-        waitingForContinue = true;
+    } else {
+        // Incorrect answer (within time limit) - add to retry list
+        addWordToRetryList(currentWordIndex, 'incorrect', 2);
 
-        // Keep the wrong answers visible for comparison - don't clear them
-        // Focus on first input to capture Enter
-        if (allInputs.length > 0) {
-            allInputs[0].focus();
-        }
+        const expectedWord = currentWord;
+        const comparison = createWordComparison(userAnswers, expectedWord);
+
+        feedbackDiv.innerHTML = `
+            <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect!</span><br>
+            <div style="margin-top: 10px; font-size: 1.1em; color: #FFB6C1;">
+                Time: ${finalTimeElapsed.toFixed(1)}s
+            </div>
+            <div class="comparison-section">
+                <div style="margin-bottom: 15px;">
+                    <strong>Your answer:</strong>
+                    <div class="user-answer-display">${comparison.userAttempt}</div>
+                </div>
+                <div>
+                    <strong>Correct answer:</strong>
+                    <div class="correct-word-display" style="letter-spacing: 3px;">${comparison.correctWordHighlighted}</div>
+                </div>
+            </div>
+            <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
+                This word will be retried twice for accuracy practice
+            </div>
+            <div style="margin-top: 15px; font-size: 1.2em;">
+                <strong>💡 Red letters</strong> show where you made mistakes<br>
+                Press <strong>Enter</strong> to continue to the next word
+            </div>
+        `;
+        feedbackDiv.className = 'feedback incorrect';
+    }
+
+    // Set waiting state for all results
+    waitingForContinue = true;
+
+    // Focus on first input to capture Enter
+    if (allInputs.length > 0) {
+        allInputs[0].focus();
     }
 }
 
@@ -1198,39 +1321,112 @@ function showFinalResults() {
     // Update back button visibility
     updateBackButtonVisibility();
 
-    // Count actual correct and incorrect words from the results array
-    const actualCorrectCount = wordResults.filter(result => result === true).length;
-    const actualIncorrectCount = wordResults.filter(result => result === false).length;
+    // Calculate enhanced statistics
+    const perfectCount = wordResults.filter(result => result.result === 'success').length;
+    const timeoutCount = wordResults.filter(result => result.result === 'timeout').length;
+    const incorrectCount = wordResults.filter(result => result.result === 'incorrect').length;
+    const timeoutIncorrectCount = wordResults.filter(result => result.result === 'timeout_incorrect').length;
 
-    const percentage = Math.round((actualCorrectCount / totalWords) * 100);
+    // Calculate average times
+    const perfectTimes = wordResults.filter(r => r.result === 'success').map(r => r.timeElapsed);
+    const timeoutTimes = wordResults.filter(r => r.result === 'timeout').map(r => r.timeElapsed);
+    const incorrectTimes = wordResults.filter(r => r.result === 'incorrect').map(r => r.timeElapsed);
+    const timeoutIncorrectTimes = wordResults.filter(r => r.result === 'timeout_incorrect').map(r => r.timeElapsed);
+
+    const avgPerfectTime = perfectTimes.length > 0 ? (perfectTimes.reduce((a, b) => a + b, 0) / perfectTimes.length) : 0;
+    const avgTimeoutTime = timeoutTimes.length > 0 ? (timeoutTimes.reduce((a, b) => a + b, 0) / timeoutTimes.length) : 0;
+    const avgIncorrectTime = incorrectTimes.length > 0 ? (incorrectTimes.reduce((a, b) => a + b, 0) / incorrectTimes.length) : 0;
+    const avgTimeoutIncorrectTime = timeoutIncorrectTimes.length > 0 ? (timeoutIncorrectTimes.reduce((a, b) => a + b, 0) / timeoutIncorrectTimes.length) : 0;
+
+    const percentage = Math.round((perfectCount / totalWords) * 100);
 
     let resultHTML = `
-        You got ${actualCorrectCount} out of ${totalWords} words correct!<br>
-        Score: ${percentage}%
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
+            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutThreshold}s timeout</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
+        </div>
+
+        <div style="font-size: 1.1em; margin-bottom: 20px;">
+            Perfect Score: ${perfectCount}/${totalWords} (${percentage}%)
+        </div>
+
+        <div style="background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin: 20px 0;">
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 10px;">📊 Performance Summary:</div>
     `;
 
-    // Add retry button if there were incorrect words
-    if (actualIncorrectCount > 0) {
-        resultHTML += `<br><br>
-            <button class="start-button" onclick="startRetryGame()">
-                Retry Incorrect Words (${actualIncorrectCount})
-            </button>
+    if (perfectCount > 0) {
+        resultHTML += `<div style="color: #90EE90; margin: 5px 0;">✅ Perfect: ${perfectCount} words (avg: ${avgPerfectTime.toFixed(1)}s)</div>`;
+    }
+
+    if (timeoutCount > 0) {
+        resultHTML += `<div style="color: #FFD700; margin: 5px 0;">⚠️ Correct but slow: ${timeoutCount} words (avg: ${avgTimeoutTime.toFixed(1)}s)</div>`;
+    }
+
+    if (incorrectCount > 0) {
+        resultHTML += `<div style="color: #FFB6C1; margin: 5px 0;">❌ Incorrect: ${incorrectCount} words (avg: ${avgIncorrectTime.toFixed(1)}s)</div>`;
+    }
+
+    if (timeoutIncorrectCount > 0) {
+        resultHTML += `<div style="color: #FF6B6B; margin: 5px 0;">❌⚠️ Wrong & slow: ${timeoutIncorrectCount} words (avg: ${avgTimeoutIncorrectTime.toFixed(1)}s)</div>`;
+    }
+
+    resultHTML += `</div>`;
+
+    // Add retry buttons based on what needs to be retried
+    const retryWordsCount = wordRetryData.length;
+    if (retryWordsCount > 0) {
+        const timeoutRetryCount = wordRetryData.filter(w => w.reason === 'timeout').length;
+        const incorrectRetryCount = wordRetryData.filter(w => w.reason === 'incorrect').length;
+
+        resultHTML += `<div style="margin: 20px 0;">`;
+
+        if (timeoutRetryCount > 0 && incorrectRetryCount > 0) {
+            resultHTML += `
+                <button class="start-button" onclick="startRetryGame()">
+                    Retry All Words (${retryWordsCount})
+                </button><br>
+                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
+                    ${timeoutRetryCount} slow words + ${incorrectRetryCount} incorrect words
+                </div>
+            `;
+        } else if (timeoutRetryCount > 0) {
+            resultHTML += `
+                <button class="start-button" onclick="startRetryGame()">
+                    Retry Slow Words (${timeoutRetryCount})
+                </button><br>
+                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
+                    Practice for speed improvement
+                </div>
+            `;
+        } else {
+            resultHTML += `
+                <button class="start-button" onclick="startRetryGame()">
+                    Retry Incorrect Words (${incorrectRetryCount})
+                </button><br>
+                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
+                    Practice for accuracy improvement
+                </div>
+            `;
+        }
+
+        resultHTML += `
             <div style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
-                💡 Tip: Press <strong>Enter</strong> to retry incorrect words
-            </div>`;
+                💡 Tip: Press <strong>Enter</strong> to retry words
+            </div>
+        </div>`;
     } else {
-        resultHTML += `<br><br>🎉 Perfect Score! Well done! 🎉`;
+        resultHTML += `<div style="margin: 20px 0; font-size: 1.2em; color: #90EE90;">🎉 Perfect Performance! 🎉</div>`;
     }
 
     // Always show play again button
-    resultHTML += `<br>
+    resultHTML += `
         <button class="start-button" onclick="restartGame()">Play Again</button>
     `;
 
     document.getElementById('final-score').innerHTML = resultHTML;
 
-    // Add keyboard shortcut ONLY if there are incorrect words and we're showing results
-    if (actualIncorrectCount > 0) {
+    // Add keyboard shortcut ONLY if there are words to retry
+    if (retryWordsCount > 0) {
         // Use setTimeout to ensure the page is fully rendered first
         setTimeout(() => {
             addRetryKeyboardShortcut();
@@ -1272,9 +1468,9 @@ function handleRetryKeydown(event) {
 
         // Make sure we're on results page AND not in game
         if (finalResults.style.display === 'block' && gameInterface.style.display === 'none') {
-            const actualIncorrectCount = wordResults.filter(result => result === false).length;
-            if (actualIncorrectCount > 0) {
-                // Retry incorrect words
+            const retryWordsCount = wordRetryData.length;
+            if (retryWordsCount > 0) {
+                // Retry words that need retrying
                 event.preventDefault(); // Prevent any other Enter key behavior
                 startRetryGame();
             }
@@ -1429,8 +1625,160 @@ function initializeBackButton() {
     updateBackButtonVisibility();
 }
 
+// Timer system functions
+function validateTimeoutInput() {
+    const input = document.getElementById('timeout-input');
+    const value = parseInt(input.value);
+
+    // Remove invalid class first
+    input.classList.remove('invalid');
+
+    if (isNaN(value) || value < 0) {
+        input.value = 15; // Reset to default
+        input.classList.add('invalid');
+        setTimeout(() => input.classList.remove('invalid'), 500);
+        return 15;
+    }
+
+    if (value > 999) {
+        input.value = 999; // Cap at maximum
+        input.classList.add('invalid');
+        setTimeout(() => input.classList.remove('invalid'), 500);
+        return 999;
+    }
+
+    return value;
+}
+
+function updateTimeoutThreshold() {
+    const value = validateTimeoutInput();
+    timeoutThreshold = value;
+    hasTimeLimit = value > 0;
+
+    // Update status display
+    updateTimeoutStatusDisplay();
+}
+
+function updateTimeoutStatusDisplay() {
+    const statusDiv = document.getElementById('timeout-status');
+    if (!statusDiv) return;
+
+    if (hasTimeLimit) {
+        statusDiv.className = 'timeout-status with-limit';
+        statusDiv.innerHTML = `✅ Time limit: ${timeoutThreshold} seconds`;
+    } else {
+        statusDiv.className = 'timeout-status no-limit';
+        statusDiv.innerHTML = `⚡ No time limit - Practice mode`;
+    }
+}
+
+function setupTimeoutInput() {
+    const input = document.getElementById('timeout-input');
+    const checkbox = document.getElementById('show-timer-checkbox');
+
+    if (!input) return;
+
+    // Add event listeners for real-time validation
+    input.addEventListener('input', updateTimeoutThreshold);
+    input.addEventListener('blur', updateTimeoutThreshold);
+    input.addEventListener('change', updateTimeoutThreshold);
+
+    // Add event listener for timer display checkbox
+    if (checkbox) {
+        checkbox.addEventListener('change', function() {
+            showTimerDisplay = this.checked;
+        });
+
+        // Initialize checkbox state
+        showTimerDisplay = checkbox.checked; // Default is false (unchecked)
+    }
+
+    // Initialize with default value
+    updateTimeoutThreshold();
+}
+
+function startWordTimer() {
+    // Clear any existing timer
+    stopWordTimer();
+
+    // Record start time
+    currentWordStartTime = Date.now();
+    timeElapsed = 0;
+
+    // Show/hide timer based on user preference
+    const simpleTimer = document.getElementById('simple-timer');
+    if (simpleTimer) {
+        simpleTimer.style.display = showTimerDisplay ? 'block' : 'none';
+    }
+
+    // Start timer interval for display updates and timeout checking
+    currentWordTimer = setInterval(updateTimerDisplay, 1000); // Update every 1 second for whole seconds
+
+    // Initial display update
+    updateTimerDisplay();
+}
+
+function stopWordTimer() {
+    if (currentWordTimer) {
+        clearInterval(currentWordTimer);
+        currentWordTimer = null;
+    }
+
+    // Hide the timer
+    const simpleTimer = document.getElementById('simple-timer');
+    if (simpleTimer) {
+        simpleTimer.style.display = 'none';
+    }
+
+    // Calculate final elapsed time
+    if (currentWordStartTime) {
+        timeElapsed = (Date.now() - currentWordStartTime) / 1000; // Convert to seconds
+    }
+
+    return timeElapsed;
+}
+
+function updateTimerDisplay() {
+    // Calculate current elapsed time
+    if (currentWordStartTime) {
+        timeElapsed = (Date.now() - currentWordStartTime) / 1000;
+    }
+
+    // Update simple timer display if enabled
+    if (showTimerDisplay) {
+        const simpleTimer = document.getElementById('simple-timer');
+        if (simpleTimer) {
+            const elapsedSeconds = Math.floor(timeElapsed);
+            simpleTimer.textContent = `⏱️ ${elapsedSeconds}s`;
+        }
+    }
+
+    // NO AUTO-SUBMIT: Let kids take as long as they need
+    // Timeout evaluation happens only when they press Enter in checkAnswer()
+}
+
+function evaluateAnswerWithTiming(isCorrect, timeElapsed) {
+    if (!hasTimeLimit) {
+        // No time limit - only check correctness
+        return isCorrect ? 'success' : 'incorrect';
+    }
+
+    const isWithinTimeLimit = timeElapsed <= timeoutThreshold;
+
+    if (isCorrect && isWithinTimeLimit) {
+        return 'success'; // ✅ Perfect! Correct and fast
+    } else if (isCorrect && !isWithinTimeLimit) {
+        return 'timeout'; // ⚠️ Correct but slow (took longer than timeout)
+    } else if (!isCorrect && !isWithinTimeLimit) {
+        return 'timeout_incorrect'; // ❌ Wrong AND slow (worst case - retry twice)
+    } else {
+        return 'incorrect'; // ❌ Wrong but within time limit
+    }
+}
+
 // Initialize data source selection when the page loads
 document.addEventListener('DOMContentLoaded', function() {
     setupDataSourceSelection();
     initializeBackButton();
+    setupTimeoutInput();
 });
