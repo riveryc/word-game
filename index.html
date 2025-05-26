@@ -1036,14 +1036,14 @@
                 <div class="timeout-title">⏱️ Response Time Limit:</div>
                 <div class="timeout-input-group">
                     <input type="number" id="timeout-input" class="timeout-input"
-                           value="15" min="0" max="999" placeholder="15">
-                    <span class="timeout-unit">seconds</span>
+                           value="5" min="0" max="99" placeholder="5">
+                    <span class="timeout-unit">seconds per missing letter</span>
                 </div>
                 <div class="timeout-help">
-                    Enter time limit (1-999 seconds) or 0 for no limit
+                    Enter time per missing letter (1-99 seconds) or 0 for no limit
                 </div>
                 <div class="timeout-status with-limit" id="timeout-status">
-                    ✅ Time limit: 15 seconds
+                    ✅ Time limit: 5 seconds per missing letter
                 </div>
 
                 <!-- Timer Display Option -->

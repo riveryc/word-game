@@ -25,8 +25,9 @@ let selectedWordCount = 20; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
 
 // Timer system variables
-let timeoutThreshold = 15; // Default 15 seconds
-let hasTimeLimit = true; // false when timeout = 0
+let timeoutPerLetter = 5; // Default 5 seconds per missing letter
+let currentWordTimeoutThreshold = 0; // Calculated timeout for current word (letters × timeoutPerLetter)
+let hasTimeLimit = true; // false when timeoutPerLetter = 0
 let showTimerDisplay = false; // Whether to show elapsed timer to user
 let currentWordStartTime = null; // When the current word started
 let currentWordTimer = null; // Timer interval for updating display
@@ -800,6 +801,9 @@ function selectLevel(level) {
 }
 
 function startGameWithLevel() {
+    // Ensure timeout settings are properly initialized before starting game
+    updateTimeoutThreshold();
+
     // Hide level selection and start the game
     document.getElementById('level-selection').style.display = 'none';
     startGame();
@@ -1054,6 +1058,12 @@ function showNextWord() {
     waitingForContinue = false;
     isProcessing = false;
 
+    // Calculate timeout threshold for this word based on missing letters
+    const missingLetterCount = wordData.wordStructure.filter(item => item.type === 'input').length;
+    currentWordTimeoutThreshold = hasTimeLimit ? (missingLetterCount * timeoutPerLetter) : 0;
+
+
+
     // Speak the word
     speakWord(currentWord);
 
@@ -1225,7 +1235,7 @@ function checkAnswer() {
                 <span class="correct" style="font-size: 1.5em;">✅ Correct!</span><br>
                 <span style="color: #FFD700; font-size: 1.2em;">⚠️ But took too long</span><br>
                 <div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">
-                    Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${timeoutThreshold}s)
+                    Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${currentWordTimeoutThreshold}s for ${missingLetters.length} letters)
                 </div>
                 <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
                     This word will be retried once for speed practice
@@ -1248,7 +1258,7 @@ function checkAnswer() {
             <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect!</span><br>
             <span style="color: #FFD700; font-size: 1.1em;">⚠️ And took too long</span><br>
             <div style="margin-top: 10px; font-size: 1.1em; color: #FFB6C1;">
-                Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${timeoutThreshold}s)
+                Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${currentWordTimeoutThreshold}s for ${missingLetters.length} letters)
             </div>
             <div class="comparison-section">
                 <div style="margin-bottom: 15px;">
@@ -1343,7 +1353,7 @@ function showFinalResults() {
     let resultHTML = `
         <div style="margin-bottom: 20px;">
             <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
-            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutThreshold}s timeout</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
+            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
         </div>
 
         <div style="font-size: 1.1em; margin-bottom: 20px;">
@@ -1634,17 +1644,17 @@ function validateTimeoutInput() {
     input.classList.remove('invalid');
 
     if (isNaN(value) || value < 0) {
-        input.value = 15; // Reset to default
+        input.value = 5; // Reset to default (5s per letter)
         input.classList.add('invalid');
         setTimeout(() => input.classList.remove('invalid'), 500);
-        return 15;
+        return 5;
     }
 
-    if (value > 999) {
-        input.value = 999; // Cap at maximum
+    if (value > 99) {
+        input.value = 99; // Cap at maximum (99s per letter)
         input.classList.add('invalid');
         setTimeout(() => input.classList.remove('invalid'), 500);
-        return 999;
+        return 99;
     }
 
     return value;
@@ -1652,7 +1662,7 @@ function validateTimeoutInput() {
 
 function updateTimeoutThreshold() {
     const value = validateTimeoutInput();
-    timeoutThreshold = value;
+    timeoutPerLetter = value;
     hasTimeLimit = value > 0;
 
     // Update status display
@@ -1665,7 +1675,7 @@ function updateTimeoutStatusDisplay() {
 
     if (hasTimeLimit) {
         statusDiv.className = 'timeout-status with-limit';
-        statusDiv.innerHTML = `✅ Time limit: ${timeoutThreshold} seconds`;
+        statusDiv.innerHTML = `✅ Time limit: ${timeoutPerLetter} seconds per missing letter`;
     } else {
         statusDiv.className = 'timeout-status no-limit';
         statusDiv.innerHTML = `⚡ No time limit - Practice mode`;
@@ -1758,12 +1768,12 @@ function updateTimerDisplay() {
 }
 
 function evaluateAnswerWithTiming(isCorrect, timeElapsed) {
-    if (!hasTimeLimit) {
+    if (!hasTimeLimit || currentWordTimeoutThreshold === 0) {
         // No time limit - only check correctness
         return isCorrect ? 'success' : 'incorrect';
     }
 
-    const isWithinTimeLimit = timeElapsed <= timeoutThreshold;
+    const isWithinTimeLimit = timeElapsed <= currentWordTimeoutThreshold;
 
     if (isCorrect && isWithinTimeLimit) {
         return 'success'; // ✅ Perfect! Correct and fast
