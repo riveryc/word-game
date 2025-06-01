@@ -19,7 +19,7 @@ let totalWords = 0;
 let isRetryMode = false;
 let lastFocusedInput = null; // Track the last focused input field
 let waitingForContinue = false; // Track if we're waiting for Enter to continue after incorrect answer
-let selectedLevel = 1; // Default to Easy (50% missing)
+let selectedLevel = 3; // Default to Level 3 (70% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 20; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
@@ -37,6 +37,9 @@ let wordRetryData = []; // Enhanced retry tracking: {word, reason, attempts, max
 // Data source variables
 let currentDataSource = 'local'; // 'local' or 'google'
 let googleSheetsUrl = '';
+
+// TTS variables
+let selectedTTSMethod = 'google'; // 'dictionary', 'google', or 'browser'
 
 // Filter variables
 let availableGrades = [];
@@ -583,11 +586,30 @@ function parseCSVLine(line) {
     return result;
 }
 
-// Enhanced text-to-speech function with online dictionary API
+// Enhanced text-to-speech function with multiple TTS methods
 async function speakWord(word) {
+    switch (selectedTTSMethod) {
+        case 'google':
+            await speakWordGoogle(word);
+            break;
+        case 'dictionary':
+            await speakWordDictionary(word);
+            break;
+        case 'browser':
+            useFallbackSpeech(word);
+            break;
+        default:
+            await speakWordGoogle(word); // Default to Google
+    }
+}
+
+// Google Translate TTS function
+async function speakWordGoogle(word) {
+    const cacheKey = `google_${word}`;
+
     // Check cache first for faster loading
-    if (audioCache.has(word)) {
-        const cachedAudioUrl = audioCache.get(word);
+    if (audioCache.has(cacheKey)) {
+        const cachedAudioUrl = audioCache.get(cacheKey);
         if (cachedAudioUrl) {
             try {
                 const audio = new Audio(cachedAudioUrl);
@@ -595,8 +617,68 @@ async function speakWord(word) {
                 await audio.play();
                 return; // Success with cached audio
             } catch (audioError) {
-                console.log('Cached audio playback failed, trying fresh API call');
-                audioCache.delete(word); // Remove bad cache entry
+                console.log('Cached Google TTS audio playback failed, trying fresh API call');
+                audioCache.delete(cacheKey); // Remove bad cache entry
+            }
+        } else {
+            // Cached as "no audio available", go straight to fallback
+            useFallbackSpeech(word);
+            return;
+        }
+    }
+
+    try {
+        // Use our backend proxy for Google Translate TTS
+        const response = await fetch(`/api/google-tts?q=${encodeURIComponent(word)}`);
+
+        if (response.ok) {
+            // Create blob URL for caching
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+
+            // Cache the audio URL for faster future access
+            audioCache.set(cacheKey, audioUrl);
+
+            const audio = new Audio(audioUrl);
+            audio.volume = 1.0;
+
+            try {
+                await audio.play();
+                return; // Success! Don't use fallback
+            } catch (audioError) {
+                console.log('Google TTS audio playback failed, falling back to speech synthesis');
+            }
+        } else {
+            console.log('Google TTS service failed, falling back to speech synthesis');
+            // Cache that no audio is available
+            audioCache.set(cacheKey, null);
+        }
+    } catch (error) {
+        console.log('Google TTS failed, falling back to speech synthesis:', error);
+        // Cache that no audio is available
+        audioCache.set(cacheKey, null);
+    }
+
+    // Fallback to computer speech synthesis
+    useFallbackSpeech(word);
+}
+
+// Dictionary API TTS function (original implementation)
+async function speakWordDictionary(word) {
+    const cacheKey = `dictionary_${word}`;
+
+    // Check cache first for faster loading
+    if (audioCache.has(cacheKey)) {
+        const cachedAudioUrl = audioCache.get(cacheKey);
+        if (cachedAudioUrl) {
+            try {
+                const audio = new Audio(cachedAudioUrl);
+                audio.volume = 1.0;
+                await audio.play();
+                return; // Success with cached audio
+            } catch (audioError) {
+                console.log('Cached dictionary audio playback failed, trying fresh API call');
+                audioCache.delete(cacheKey); // Remove bad cache entry
             }
         } else {
             // Cached as "no audio available", go straight to fallback
@@ -646,7 +728,7 @@ async function speakWord(word) {
 
             if (audioUrl) {
                 // Cache the audio URL for faster future access
-                audioCache.set(word, audioUrl);
+                audioCache.set(cacheKey, audioUrl);
 
                 const audio = new Audio(audioUrl);
                 audio.volume = 1.0;
@@ -655,11 +737,11 @@ async function speakWord(word) {
                     await audio.play();
                     return; // Success! Don't use fallback
                 } catch (audioError) {
-                    console.log('Audio playback failed, falling back to speech synthesis');
+                    console.log('Dictionary audio playback failed, falling back to speech synthesis');
                 }
             } else {
                 // Cache that no audio is available
-                audioCache.set(word, null);
+                audioCache.set(cacheKey, null);
             }
         }
     } catch (error) {
@@ -805,6 +887,17 @@ function getLevelName(level) {
     return levelNames[level - 1] || 'Unknown';
 }
 
+// TTS method selection functions
+function selectTTSMethod(method) {
+    selectedTTSMethod = method;
+
+    // Update visual selection
+    document.querySelectorAll('.tts-option').forEach(option => {
+        option.classList.remove('selected');
+    });
+    document.querySelector(`[data-tts="${method}"]`).classList.add('selected');
+}
+
 function startGameWithLevel() {
     // Ensure timeout settings are properly initialized before starting game
     updateTimeoutThreshold();
@@ -828,14 +921,14 @@ function createPartialWord(word) {
     let missingLetters = [];
 
     // Calculate how many letters to show based on selected level
-    const missingPercentage = [50, 75, 100][selectedLevel - 1];
+    const missingPercentage = [50, 60, 70, 80, 90, 100][selectedLevel - 1];
     const totalLetters = word.length;
     const lettersToShow = Math.max(0, Math.ceil(totalLetters * (1 - missingPercentage / 100)));
 
-    // Special case: for nightmare mode (level 3), show 0 letters always
-    // For very short words at medium level (level 2), might show 0 letters
-    const actualLettersToShow = selectedLevel === 3 ? 0 :
-        (totalLetters <= 2 && selectedLevel === 2) ?
+    // Special case: for nightmare mode (level 6), show 0 letters always
+    // For very short words at level 5, might show 0 letters
+    const actualLettersToShow = selectedLevel === 6 ? 0 :
+        (totalLetters <= 2 && selectedLevel === 5) ?
         Math.max(0, lettersToShow) : Math.max(1, lettersToShow);
 
     // Determine which positions to show - make it more random
@@ -1358,7 +1451,7 @@ function showFinalResults() {
     let resultHTML = `
         <div style="margin-bottom: 20px;">
             <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
-            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: ${getLevelName(selectedLevel)}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: ${getLevelName(selectedLevel)}, No time limit</div>`}
+            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
         </div>
 
         <div style="font-size: 1.1em; margin-bottom: 20px;">
