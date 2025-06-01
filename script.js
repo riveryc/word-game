@@ -35,11 +35,8 @@ let timeElapsed = 0; // Current elapsed time in seconds
 let wordRetryData = []; // Enhanced retry tracking: {word, reason, attempts, maxAttempts, originalIndex}
 
 // Data source variables
-let currentDataSource = 'local'; // 'local' or 'google'
+let currentDataSource = 'default'; // 'default', 'google', or 'local'
 let googleSheetsUrl = '';
-
-// TTS variables
-let selectedTTSMethod = 'google'; // 'dictionary', 'google', or 'browser'
 
 // Filter variables
 let availableGrades = [];
@@ -51,17 +48,21 @@ let dateTo = '';
 
 // Data source selection functions
 function setupDataSourceSelection() {
-    const localRadio = document.getElementById('local-csv');
+    const defaultRadio = document.getElementById('default-csv');
     const googleRadio = document.getElementById('google-sheets');
+    const localRadio = document.getElementById('local-csv');
     const googleInput = document.getElementById('google-sheets-input');
-    const localOption = document.getElementById('local-csv-option');
+    const localInput = document.getElementById('local-csv-input');
+    const defaultOption = document.getElementById('default-csv-option');
     const googleOption = document.getElementById('google-sheets-option');
+    const localOption = document.getElementById('local-csv-option');
 
     // Handle radio button changes
-    localRadio.addEventListener('change', function() {
+    defaultRadio.addEventListener('change', function() {
         if (this.checked) {
-            currentDataSource = 'local';
+            currentDataSource = 'default';
             googleInput.style.display = 'none';
+            localInput.style.display = 'none';
             updateOptionSelection();
         }
     });
@@ -70,16 +71,26 @@ function setupDataSourceSelection() {
         if (this.checked) {
             currentDataSource = 'google';
             googleInput.style.display = 'block';
+            localInput.style.display = 'none';
             updateOptionSelection();
             // Focus on URL input
             document.getElementById('sheets-url').focus();
         }
     });
 
+    localRadio.addEventListener('change', function() {
+        if (this.checked) {
+            currentDataSource = 'local';
+            googleInput.style.display = 'none';
+            localInput.style.display = 'block';
+            updateOptionSelection();
+        }
+    });
+
     // Handle clicking on option containers
-    localOption.addEventListener('click', function() {
-        localRadio.checked = true;
-        localRadio.dispatchEvent(new Event('change'));
+    defaultOption.addEventListener('click', function() {
+        defaultRadio.checked = true;
+        defaultRadio.dispatchEvent(new Event('change'));
     });
 
     googleOption.addEventListener('click', function() {
@@ -87,9 +98,15 @@ function setupDataSourceSelection() {
         googleRadio.dispatchEvent(new Event('change'));
     });
 
+    localOption.addEventListener('click', function() {
+        localRadio.checked = true;
+        localRadio.dispatchEvent(new Event('change'));
+    });
+
     function updateOptionSelection() {
-        localOption.classList.toggle('selected', localRadio.checked);
+        defaultOption.classList.toggle('selected', defaultRadio.checked);
         googleOption.classList.toggle('selected', googleRadio.checked);
+        localOption.classList.toggle('selected', localRadio.checked);
     }
 
     // Initialize selection
@@ -97,23 +114,39 @@ function setupDataSourceSelection() {
 }
 
 function loadSelectedDataSource() {
-    if (currentDataSource === 'local') {
-        loadLocalCSV();
-    } else {
+    if (currentDataSource === 'default') {
+        loadDefaultCSV();
+    } else if (currentDataSource === 'google') {
         const url = document.getElementById('sheets-url').value.trim();
         if (!url) {
-            showUrlError('Please enter a Google Sheets URL');
+            showDataSourceError('Please enter a Google Sheets URL');
             return;
         }
 
         // Basic URL validation
         if (!url.includes('docs.google.com/spreadsheets')) {
-            showUrlError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
+            showDataSourceError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
             return;
         }
 
         googleSheetsUrl = url;
         loadGoogleSheets(url);
+    } else if (currentDataSource === 'local') {
+        const fileInput = document.getElementById('csv-file');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            showDataSourceError('Please select a CSV file');
+            return;
+        }
+
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            showDataSourceError('Please select a valid CSV file (must have .csv extension)');
+            return;
+        }
+
+        loadLocalFile(file);
     }
 }
 
@@ -586,30 +619,11 @@ function parseCSVLine(line) {
     return result;
 }
 
-// Enhanced text-to-speech function with multiple TTS methods
+// Enhanced text-to-speech function with online dictionary API
 async function speakWord(word) {
-    switch (selectedTTSMethod) {
-        case 'google':
-            await speakWordGoogle(word);
-            break;
-        case 'dictionary':
-            await speakWordDictionary(word);
-            break;
-        case 'browser':
-            useFallbackSpeech(word);
-            break;
-        default:
-            await speakWordGoogle(word); // Default to Google
-    }
-}
-
-// Google Translate TTS function
-async function speakWordGoogle(word) {
-    const cacheKey = `google_${word}`;
-
     // Check cache first for faster loading
-    if (audioCache.has(cacheKey)) {
-        const cachedAudioUrl = audioCache.get(cacheKey);
+    if (audioCache.has(word)) {
+        const cachedAudioUrl = audioCache.get(word);
         if (cachedAudioUrl) {
             try {
                 const audio = new Audio(cachedAudioUrl);
@@ -617,68 +631,8 @@ async function speakWordGoogle(word) {
                 await audio.play();
                 return; // Success with cached audio
             } catch (audioError) {
-                console.log('Cached Google TTS audio playback failed, trying fresh API call');
-                audioCache.delete(cacheKey); // Remove bad cache entry
-            }
-        } else {
-            // Cached as "no audio available", go straight to fallback
-            useFallbackSpeech(word);
-            return;
-        }
-    }
-
-    try {
-        // Use our backend proxy for Google Translate TTS
-        const response = await fetch(`/api/google-tts?q=${encodeURIComponent(word)}`);
-
-        if (response.ok) {
-            // Create blob URL for caching
-            const audioBlob = await response.blob();
-            const audioUrl = URL.createObjectURL(audioBlob);
-
-            // Cache the audio URL for faster future access
-            audioCache.set(cacheKey, audioUrl);
-
-            const audio = new Audio(audioUrl);
-            audio.volume = 1.0;
-
-            try {
-                await audio.play();
-                return; // Success! Don't use fallback
-            } catch (audioError) {
-                console.log('Google TTS audio playback failed, falling back to speech synthesis');
-            }
-        } else {
-            console.log('Google TTS service failed, falling back to speech synthesis');
-            // Cache that no audio is available
-            audioCache.set(cacheKey, null);
-        }
-    } catch (error) {
-        console.log('Google TTS failed, falling back to speech synthesis:', error);
-        // Cache that no audio is available
-        audioCache.set(cacheKey, null);
-    }
-
-    // Fallback to computer speech synthesis
-    useFallbackSpeech(word);
-}
-
-// Dictionary API TTS function (original implementation)
-async function speakWordDictionary(word) {
-    const cacheKey = `dictionary_${word}`;
-
-    // Check cache first for faster loading
-    if (audioCache.has(cacheKey)) {
-        const cachedAudioUrl = audioCache.get(cacheKey);
-        if (cachedAudioUrl) {
-            try {
-                const audio = new Audio(cachedAudioUrl);
-                audio.volume = 1.0;
-                await audio.play();
-                return; // Success with cached audio
-            } catch (audioError) {
-                console.log('Cached dictionary audio playback failed, trying fresh API call');
-                audioCache.delete(cacheKey); // Remove bad cache entry
+                console.log('Cached audio playback failed, trying fresh API call');
+                audioCache.delete(word); // Remove bad cache entry
             }
         } else {
             // Cached as "no audio available", go straight to fallback
@@ -728,7 +682,7 @@ async function speakWordDictionary(word) {
 
             if (audioUrl) {
                 // Cache the audio URL for faster future access
-                audioCache.set(cacheKey, audioUrl);
+                audioCache.set(word, audioUrl);
 
                 const audio = new Audio(audioUrl);
                 audio.volume = 1.0;
@@ -737,11 +691,11 @@ async function speakWordDictionary(word) {
                     await audio.play();
                     return; // Success! Don't use fallback
                 } catch (audioError) {
-                    console.log('Dictionary audio playback failed, falling back to speech synthesis');
+                    console.log('Audio playback failed, falling back to speech synthesis');
                 }
             } else {
                 // Cache that no audio is available
-                audioCache.set(cacheKey, null);
+                audioCache.set(word, null);
             }
         }
     } catch (error) {
@@ -811,13 +765,13 @@ function focusAppropriateInput() {
     allInputs[0].focus();
 }
 
-// Load words from local CSV file
-async function loadLocalCSV() {
+// Load words from default CSV file
+async function loadDefaultCSV() {
     // Show loading state
     document.getElementById('data-source-selection').style.display = 'none';
     document.getElementById('content').style.display = 'block';
     const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = '<div class="loading">Loading from local file...</div>';
+    contentDiv.innerHTML = '<div class="loading">Loading default word list...</div>';
 
     try {
         // Fetch the words.csv file
@@ -833,10 +787,64 @@ async function loadLocalCSV() {
         // Reuse the same parsing logic as Google Sheets
         parseGoogleSheetsData(text);
 
+        // Show success and proceed to level selection
+        showWordCountAndLevelSelection();
+
     } catch (error) {
-        console.error('Error loading words:', error);
-        showDataSourceError(`Error loading words.csv: ${error.message}`);
+        console.error('Error loading default CSV:', error);
+        showDataSourceError(`Failed to load default CSV file: ${error.message}`);
     }
+}
+
+// Load words from user-selected local CSV file
+async function loadLocalFile(file) {
+    // Show loading state
+    document.getElementById('data-source-selection').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    const contentDiv = document.getElementById('content');
+    contentDiv.innerHTML = '<div class="loading">Loading your CSV file...</div>';
+
+    try {
+        // Read the file content
+        const text = await readFileAsText(file);
+
+        // Validate CSV format by checking for required columns
+        if (!validateCSVFormat(text)) {
+            throw new Error('Invalid CSV format. Please ensure your file has the required columns: word, date, grade, source, description');
+        }
+
+        // Parse the CSV data using the same logic as Google Sheets
+        parseGoogleSheetsData(text);
+
+        // Show success and proceed to level selection
+        showWordCountAndLevelSelection();
+
+    } catch (error) {
+        console.error('Error loading local file:', error);
+        showDataSourceError(`Failed to load CSV file: ${error.message}`);
+    }
+}
+
+// Helper function to read file as text
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsText(file);
+    });
+}
+
+// Helper function to validate CSV format
+function validateCSVFormat(csvText) {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) return false; // Need at least header + 1 data row
+
+    const header = lines[0].toLowerCase();
+    const requiredColumns = ['word'];
+
+    // Check if at least the 'word' column exists
+    return requiredColumns.every(col => header.includes(col));
 }
 
 // Common function to show word count and level selection
@@ -880,22 +888,6 @@ function selectLevel(level) {
         option.classList.remove('selected');
     });
     document.querySelector(`[data-level="${level}"]`).classList.add('selected');
-}
-
-function getLevelName(level) {
-    const levelNames = ['Easy', 'Medium', '🔥 NIGHTMARE 🔥'];
-    return levelNames[level - 1] || 'Unknown';
-}
-
-// TTS method selection functions
-function selectTTSMethod(method) {
-    selectedTTSMethod = method;
-
-    // Update visual selection
-    document.querySelectorAll('.tts-option').forEach(option => {
-        option.classList.remove('selected');
-    });
-    document.querySelector(`[data-tts="${method}"]`).classList.add('selected');
 }
 
 function startGameWithLevel() {

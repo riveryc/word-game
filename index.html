@@ -474,6 +474,81 @@
             margin-top: 10px;
         }
 
+        /* Data Input Section Styles */
+        .data-input-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .data-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 12px 15px;
+            font-size: 1em;
+            border: 2px solid white;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: purple;
+            font-family: Verdana, sans-serif;
+            margin-bottom: 10px;
+        }
+
+        .data-input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(144, 238, 144, 0.5);
+            border-color: #90EE90;
+        }
+
+        .file-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px 15px;
+            font-size: 1em;
+            border: 2px solid white;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: purple;
+            font-family: Verdana, sans-serif;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .file-input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(144, 238, 144, 0.5);
+            border-color: #90EE90;
+        }
+
+        .file-input::file-selector-button {
+            background-color: rgba(144, 238, 144, 0.3);
+            border: 1px solid #90EE90;
+            border-radius: 5px;
+            color: #FFFFFF;
+            padding: 8px 12px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .file-input::file-selector-button:hover {
+            background-color: rgba(144, 238, 144, 0.5);
+        }
+
+        .input-help {
+            font-size: 0.9em;
+            color: #E6E6FA;
+            line-height: 1.4;
+            text-align: left;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
         /* Word Filter Styles */
         .word-filters {
             background-color: rgba(255, 255, 255, 0.1);
@@ -1270,33 +1345,58 @@
         <div id="data-source-selection" class="data-source-selection">
             <h1>Choose Your Word Source</h1>
             <div class="source-options">
-                <div class="source-option" id="local-csv-option">
-                    <input type="radio" id="local-csv" name="data-source" value="local" checked>
-                    <label for="local-csv">
-                        <div class="source-title">📁 Local CSV File</div>
-                        <div class="source-description">Use the default word list (words.csv)</div>
+                <!-- Option 1: Default CSV File -->
+                <div class="source-option" id="default-csv-option">
+                    <input type="radio" id="default-csv" name="data-source" value="default" checked>
+                    <label for="default-csv">
+                        <div class="source-title">📁 Default CSV File</div>
+                        <div class="source-description">Use the built-in word list (words.csv)</div>
                     </label>
                 </div>
 
+                <!-- Option 2: Google Sheets -->
                 <div class="source-option" id="google-sheets-option">
                     <input type="radio" id="google-sheets" name="data-source" value="google">
                     <label for="google-sheets">
                         <div class="source-title">📊 Google Sheets</div>
-                        <div class="source-description">Use sample sheet or load your own Google Sheet</div>
+                        <div class="source-description">Load words from a Google Sheets document</div>
+                    </label>
+                </div>
+
+                <!-- Option 3: Local CSV File -->
+                <div class="source-option" id="local-csv-option">
+                    <input type="radio" id="local-csv" name="data-source" value="local">
+                    <label for="local-csv">
+                        <div class="source-title">💻 Local CSV File</div>
+                        <div class="source-description">Upload your own CSV file from your device</div>
                     </label>
                 </div>
             </div>
 
-            <div id="google-sheets-input" class="google-sheets-input" style="display: none;">
+            <!-- Google Sheets Input -->
+            <div id="google-sheets-input" class="data-input-section" style="display: none;">
                 <div class="input-section">
-                    <label for="sheets-url">Google Sheets URL:</label>
-                    <input type="text" id="sheets-url" class="sheets-url-input"
+                    <label for="sheets-url">📊 Google Sheets URL:</label>
+                    <input type="text" id="sheets-url" class="data-input"
                            value="https://docs.google.com/spreadsheets/d/1D7-Ny0FuD4w3inEi_lt-kpv7M0f7d0shnmS5TpiWdl0/edit?gid=0#gid=0"
                            placeholder="Paste your Google Sheets URL here...">
-                    <div class="url-help">
+                    <div class="input-help">
                         <strong>📋 Default sheet loaded!</strong> Ready to use, or replace with your own.<br>
-                        <strong>Required columns:</strong> word, date, grade, source, example sentence, description<br>
+                        <strong>Required columns:</strong> word, date, grade, source, description<br>
                         <strong>Format:</strong> https://docs.google.com/spreadsheets/d/[ID]/edit
+                    </div>
+                </div>
+            </div>
+
+            <!-- Local CSV File Input -->
+            <div id="local-csv-input" class="data-input-section" style="display: none;">
+                <div class="input-section">
+                    <label for="csv-file">💻 Select CSV File:</label>
+                    <input type="file" id="csv-file" class="file-input" accept=".csv" />
+                    <div class="input-help">
+                        <strong>📄 Select a CSV file from your device</strong><br>
+                        <strong>Required columns:</strong> word, date, grade, source, description<br>
+                        <strong>File format:</strong> Only .csv files are accepted
                     </div>
                 </div>
             </div>
@@ -1312,7 +1412,73 @@
 
         <!-- Level Selection -->
         <div id="level-selection" class="level-selection">
-            <!-- Word Filters -->
+            <!-- 1. Start Game Button -->
+            <button class="start-button" onclick="startGameWithLevel()" style="margin-bottom: 30px;">Start Game!</button>
+
+            <!-- 2. Choose Difficulty Level -->
+            <div class="level-title">Choose Difficulty Level:</div>
+            <div class="level-options">
+                <div class="level-option selected" onclick="selectLevel(1)" data-level="1">
+                    <div class="level-name">Easy</div>
+                    <div class="level-description">50% missing letters</div>
+                </div>
+                <div class="level-option" onclick="selectLevel(2)" data-level="2">
+                    <div class="level-name">Medium</div>
+                    <div class="level-description">75% missing letters</div>
+                </div>
+                <div class="level-option level-nightmare" onclick="selectLevel(3)" data-level="3">
+                    <div class="level-name">🔥 NIGHTMARE 🔥</div>
+                    <div class="level-description">100% missing letters - INSANE!</div>
+                </div>
+            </div>
+
+            <!-- 3. Response Time Limit -->
+            <div class="timeout-selection">
+                <div class="timeout-title">⏱️ Response Time Limit:</div>
+                <div class="timeout-input-group">
+                    <input type="number" id="timeout-input" class="timeout-input"
+                           value="5" min="0" max="99" placeholder="5">
+                    <span class="timeout-unit">seconds per missing letter</span>
+                </div>
+                <div class="timeout-help">
+                    Enter time per missing letter (1-99 seconds) or 0 for no limit
+                </div>
+                <div class="timeout-status with-limit" id="timeout-status">
+                    ✅ Time limit: 5 seconds per missing letter
+                </div>
+
+                <!-- Timer Display Option -->
+                <div class="timer-option">
+                    <label class="timer-checkbox-label">
+                        <input type="checkbox" id="show-timer-checkbox" class="timer-checkbox">
+                        <span class="timer-checkbox-text">📊 Show elapsed time during game</span>
+                    </label>
+                    <div class="timer-option-help">
+                        Optional: Display a timer to track response speed (for advanced practice)
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Audio Method -->
+            <div class="tts-selection">
+                <div class="tts-title">🔊 Audio Method:</div>
+                <div class="tts-options">
+                    <div class="tts-option" onclick="selectTTSMethod('dictionary')" data-tts="dictionary">
+                        <div class="tts-name">📖 Dictionary API</div>
+                        <div class="tts-description">Professional pronunciation (requires internet)</div>
+                    </div>
+                    <div class="tts-option selected" onclick="selectTTSMethod('google')" data-tts="google">
+                        <div class="tts-name">🌐 Google Translate</div>
+                        <div class="tts-description">High-quality voice synthesis (default)</div>
+                    </div>
+                    <div class="tts-option" onclick="selectTTSMethod('browser')" data-tts="browser">
+                        <div class="tts-name">💻 Browser Voice</div>
+                        <div class="tts-description">Built-in text-to-speech (offline)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Word Filters -->
             <div id="word-filters" class="word-filters" style="display: none;">
                 <div class="filter-title">📊 Filter Words</div>
 
@@ -1341,70 +1507,6 @@
                     </div>
                 </div>
             </div>
-
-            <div class="level-title">Choose Difficulty Level:</div>
-            <div class="level-options">
-                <div class="level-option selected" onclick="selectLevel(1)" data-level="1">
-                    <div class="level-name">Easy</div>
-                    <div class="level-description">50% missing letters</div>
-                </div>
-                <div class="level-option" onclick="selectLevel(2)" data-level="2">
-                    <div class="level-name">Medium</div>
-                    <div class="level-description">75% missing letters</div>
-                </div>
-                <div class="level-option level-nightmare" onclick="selectLevel(3)" data-level="3">
-                    <div class="level-name">🔥 NIGHTMARE 🔥</div>
-                    <div class="level-description">100% missing letters - INSANE!</div>
-                </div>
-            </div>
-
-            <!-- Timeout Selection -->
-            <div class="timeout-selection">
-                <div class="timeout-title">⏱️ Response Time Limit:</div>
-                <div class="timeout-input-group">
-                    <input type="number" id="timeout-input" class="timeout-input"
-                           value="5" min="0" max="99" placeholder="5">
-                    <span class="timeout-unit">seconds per missing letter</span>
-                </div>
-                <div class="timeout-help">
-                    Enter time per missing letter (1-99 seconds) or 0 for no limit
-                </div>
-                <div class="timeout-status with-limit" id="timeout-status">
-                    ✅ Time limit: 5 seconds per missing letter
-                </div>
-
-                <!-- Timer Display Option -->
-                <div class="timer-option">
-                    <label class="timer-checkbox-label">
-                        <input type="checkbox" id="show-timer-checkbox" class="timer-checkbox">
-                        <span class="timer-checkbox-text">📊 Show elapsed time during game</span>
-                    </label>
-                    <div class="timer-option-help">
-                        Optional: Display a timer to track response speed (for advanced practice)
-                    </div>
-                </div>
-            </div>
-
-            <!-- TTS Method Selection -->
-            <div class="tts-selection">
-                <div class="tts-title">🔊 Audio Method:</div>
-                <div class="tts-options">
-                    <div class="tts-option" onclick="selectTTSMethod('dictionary')" data-tts="dictionary">
-                        <div class="tts-name">📖 Dictionary API</div>
-                        <div class="tts-description">Professional pronunciation (requires internet)</div>
-                    </div>
-                    <div class="tts-option selected" onclick="selectTTSMethod('google')" data-tts="google">
-                        <div class="tts-name">🌐 Google Translate</div>
-                        <div class="tts-description">High-quality voice synthesis (default)</div>
-                    </div>
-                    <div class="tts-option" onclick="selectTTSMethod('browser')" data-tts="browser">
-                        <div class="tts-name">💻 Browser Voice</div>
-                        <div class="tts-description">Built-in text-to-speech (offline)</div>
-                    </div>
-                </div>
-            </div>
-
-            <button class="start-button" onclick="startGameWithLevel()" style="margin-top: 20px;">Start Game!</button>
         </div>
 
         <!-- Word Count Selection (only shown for large word lists) -->
