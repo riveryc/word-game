@@ -19,7 +19,7 @@ let totalWords = 0;
 let isRetryMode = false;
 let lastFocusedInput = null; // Track the last focused input field
 let waitingForContinue = false; // Track if we're waiting for Enter to continue after incorrect answer
-let selectedLevel = 3; // Default to Level 3 (70% missing)
+let selectedLevel = 1; // Default to Easy (50% missing)
 let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 20; // Default number of words to practice
 let audioCache = new Map(); // Cache for audio URLs to avoid repeated API calls
@@ -800,6 +800,11 @@ function selectLevel(level) {
     document.querySelector(`[data-level="${level}"]`).classList.add('selected');
 }
 
+function getLevelName(level) {
+    const levelNames = ['Easy', 'Medium', '🔥 NIGHTMARE 🔥'];
+    return levelNames[level - 1] || 'Unknown';
+}
+
 function startGameWithLevel() {
     // Ensure timeout settings are properly initialized before starting game
     updateTimeoutThreshold();
@@ -823,14 +828,14 @@ function createPartialWord(word) {
     let missingLetters = [];
 
     // Calculate how many letters to show based on selected level
-    const missingPercentage = [50, 60, 70, 80, 90, 100][selectedLevel - 1];
+    const missingPercentage = [50, 75, 100][selectedLevel - 1];
     const totalLetters = word.length;
     const lettersToShow = Math.max(0, Math.ceil(totalLetters * (1 - missingPercentage / 100)));
 
-    // Special case: for nightmare mode (level 6), show 0 letters always
-    // For very short words at level 5, might show 0 letters
-    const actualLettersToShow = selectedLevel === 6 ? 0 :
-        (totalLetters <= 2 && selectedLevel === 5) ?
+    // Special case: for nightmare mode (level 3), show 0 letters always
+    // For very short words at medium level (level 2), might show 0 letters
+    const actualLettersToShow = selectedLevel === 3 ? 0 :
+        (totalLetters <= 2 && selectedLevel === 2) ?
         Math.max(0, lettersToShow) : Math.max(1, lettersToShow);
 
     // Determine which positions to show - make it more random
@@ -1353,7 +1358,7 @@ function showFinalResults() {
     let resultHTML = `
         <div style="margin-bottom: 20px;">
             <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
-            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
+            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: ${getLevelName(selectedLevel)}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: ${getLevelName(selectedLevel)}, No time limit</div>`}
         </div>
 
         <div style="font-size: 1.1em; margin-bottom: 20px;">

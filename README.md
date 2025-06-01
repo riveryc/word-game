@@ -12,12 +12,9 @@ A fun and educational web-based spelling game designed for young learners. Kids 
 - **Unified Enter Controls**: Consistent Enter-to-continue for both correct and incorrect answers
 
 ### 🎚️ Difficulty Levels
-Choose from 6 difficulty levels:
-- **Level 1 - Easy**: 50% missing letters
-- **Level 2 - Medium**: 60% missing letters
-- **Level 3 - Normal**: 70% missing letters (default)
-- **Level 4 - Hard**: 80% missing letters
-- **Level 5 - Expert**: 90% missing letters
+Choose from 3 difficulty levels:
+- **Easy**: 50% missing letters (default)
+- **Medium**: 75% missing letters
 - **🔥 NIGHTMARE 🔥**: 100% missing letters (ultimate challenge!)
 
 ### 📚 Educational Features
@@ -90,7 +87,7 @@ Choose from 6 difficulty levels:
 - Real-time filtering with word count updates
 
 ### 3. **Choose Your Settings**
-- Select from 6 difficulty levels
+- Select from 3 difficulty levels
 - Choose word count (if more than 30 words available)
 - Higher levels show fewer letters
 
