@@ -998,6 +998,12 @@ document.addEventListener('DOMContentLoaded', function() {
     setupDataSourceSelectionHandler(); // Call the renamed setup function from the handler
     initializeBackButton();
     initializeTimerManager();
+
+    // Attach event listener to the load data button
+    const loadDataButton = document.getElementById('load-data-button');
+    if (loadDataButton) {
+        loadDataButton.addEventListener('click', loadSelectedDataSource);
+    }
 });
 
 // Make loadSelectedDataSource globally available if it's called from HTML onclick
