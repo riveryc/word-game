@@ -37,7 +37,7 @@ export async function loadGoogleSheets(url) {
             throw new Error(ERROR_MESSAGES.GOOGLE_SHEET_EMPTY);
         }
 
-        return parseCSV(csvText);
+        return csvText;
         
     } catch (error) {
         if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {

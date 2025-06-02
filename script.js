@@ -116,22 +116,44 @@ function setupDataSourceSelection() {
     updateSelectionUI(); // Initial UI setup
 }
 
-function loadSelectedDataSource() {
+async function loadSelectedDataSource() {
+    // Show loading state (this should be done before any async operation)
+    document.getElementById('data-source-selection').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    const contentDiv = document.getElementById('content');
+    
     if (currentDataSource === 'default') {
+        contentDiv.innerHTML = '<div class="loading">Loading default words...</div>';
         loadLocalCSV(); // This loads words.csv by default
     } else if (currentDataSource === 'google') {
+        contentDiv.innerHTML = '<div class="loading">Loading from Google Sheets...</div>';
         const url = document.getElementById('sheets-url').value.trim();
         if (!url) {
             showUrlError('Please enter a Google Sheets URL');
+            // Restore data source selection screen on error
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('data-source-selection').style.display = 'block';
             return;
         }
         if (!url.includes('docs.google.com/spreadsheets')) {
             showUrlError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('data-source-selection').style.display = 'block';
             return;
         }
         googleSheetsUrl = url;
-        loadGoogleSheets(url); // Now correctly calls imported function
+        try {
+            const csvText = await loadGoogleSheets(url); // Await the raw CSV text
+            parseGoogleSheetsData(csvText); // Parse it using the function in script.js
+        } catch (error) {
+            console.error('Error loading or parsing Google Sheets data:', error);
+            showDataSourceError(error.message || 'Failed to load Google Sheets.');
+            // Ensure content is hidden and data source selection is shown on error
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('data-source-selection').style.display = 'block';
+        }
     } else if (currentDataSource === 'local') {
+        contentDiv.innerHTML = '<div class="loading">Loading from uploaded file...</div>';
         const fileInput = document.getElementById('csv-file');
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             showUrlError('Please select a CSV file to upload.'); // Reusing showUrlError for simplicity, might need a dedicated error display
@@ -166,6 +188,9 @@ function loadSelectedDataSource() {
     } else {
         console.error('Unknown data source selected:', currentDataSource);
         showDataSourceError('Invalid data source selected. Please try again.');
+        // Restore data source selection screen on error
+        document.getElementById('content').style.display = 'none';
+        document.getElementById('data-source-selection').style.display = 'block';
     }
 }
 
