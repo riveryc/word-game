@@ -94,7 +94,7 @@
         <!-- Level Selection -->
         <div id="level-selection" class="level-selection">
             <!-- 1. Start Game Button -->
-            <button class="start-button" onclick="startGameWithLevel()" style="margin-bottom: 30px;">Start Game!</button>
+            <button class="start-button" style="margin-bottom: 30px;">Start Game!</button>
 
             <!-- New Available Words Display -->
             <div id="available-words-display" class="available-words-info" style="text-align: center; margin-bottom: 20px; font-size: 1.1em;">
@@ -104,15 +104,15 @@
             <!-- 2. Choose Difficulty Level -->
             <div class="level-title">Choose Difficulty Level:</div>
             <div class="level-options">
-                <div class="level-option selected" onclick="selectLevel(1)" data-level="1">
+                <div class="level-option selected" data-level="1">
                     <div class="level-name">Easy</div>
                     <div class="level-description">50% missing letters</div>
                 </div>
-                <div class="level-option" onclick="selectLevel(2)" data-level="2">
+                <div class="level-option" data-level="2">
                     <div class="level-name">Medium</div>
                     <div class="level-description">75% missing letters</div>
                 </div>
-                <div class="level-option level-nightmare" onclick="selectLevel(3)" data-level="3">
+                <div class="level-option level-nightmare" data-level="3">
                     <div class="level-name">🔥 NIGHTMARE 🔥</div>
                     <div class="level-description">100% missing letters - INSANE!</div>
                 </div>
@@ -149,15 +149,11 @@
             <div class="tts-selection">
                 <div class="tts-title">🔊 Audio Method:</div>
                 <div class="tts-options">
-                    <div class="tts-option" onclick="selectTTSMethod('dictionary')" data-tts="dictionary">
+                    <div class="tts-option" data-method="dictionary">
                         <div class="tts-name">📖 Dictionary API</div>
                         <div class="tts-description">Professional pronunciation (requires internet)</div>
                     </div>
-                    <div class="tts-option selected" onclick="selectTTSMethod('google')" data-tts="google">
-                        <div class="tts-name">🌐 Google Translate</div>
-                        <div class="tts-description">High-quality voice synthesis (default)</div>
-                    </div>
-                    <div class="tts-option" onclick="selectTTSMethod('browser')" data-tts="browser">
+                    <div class="tts-option" data-method="browser">
                         <div class="tts-name">💻 Browser Voice</div>
                         <div class="tts-description">Built-in text-to-speech (offline)</div>
                     </div>
@@ -211,7 +207,7 @@
             <div class="progress" id="progress"></div>
             <div class="word-display" id="word-display"></div>
             <div class="word-description" id="word-description"></div>
-            <button class="repeat-button" id="repeat-button" onclick="repeatWord()">🔊 Repeat</button>
+            <button class="repeat-button" id="repeat-button">🔊 Repeat</button>
             <div>Fill in the missing letters and press <strong>Enter</strong> to check your answer</div>
             <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">
                 💡 Tips: Press <strong>Space bar</strong> to repeat the word • Press <strong>Enter</strong> to continue after each word
@@ -259,11 +255,6 @@
         💬 Feedback
     </a>
 
-    <script src="js/ui/confirmationDialog.js"></script>
-    <script src="js/ui/resultsInterface.js"></script>
-    <script src="js/audio/audioCache.js"></script>
-    <script src="js/audio/ttsProviders.js"></script>
-    <script src="js/audio/audioManager.js"></script>
-    <script type="module" src="script.js"></script>
+    <script src="script.js" type="module"></script>
 </body>
 </html>

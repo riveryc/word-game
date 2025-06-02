@@ -1,31 +1,34 @@
 // Audio system coordination and management
 
 // Audio cache for storing audio URLs to avoid repeated API calls
-let managerAudioCache = new Map();
+const managerAudioCache = new Map();
 
-// Current audio settings
-let currentAudioMethod = 'dictionary'; // 'dictionary', 'google', or 'browser'
-let audioVolume = 1.0;
-let speechRate = 0.6; // Slower for better clarity
-let speechPitch = 1.0;
+// Default audio settings (can be changed by UI later)
+let currentAudioMethodDefault = 'dictionary'; // Changed default to dictionary
+let audioVolumeDefault = 1.0;
+let speechRateDefault = 0.8;
+let speechPitchDefault = 1.0;
 
 // Audio manager class
 class AudioManager {
     constructor() {
         this.cache = managerAudioCache;
-        this.method = currentAudioMethod;
-        this.volume = audioVolume;
-        this.rate = speechRate;
-        this.pitch = speechPitch;
+        this.method = currentAudioMethodDefault;
+        this.volume = audioVolumeDefault;
+        this.rate = speechRateDefault;
+        this.pitch = speechPitchDefault;
         this.isEnabled = true;
         this.currentWord = null;
+        this.currentAudioElement = null;
     }
 
-    // Set audio method (dictionary, google, browser)
+    // Set audio method (dictionary, browser)
     setMethod(method) {
-        if (['dictionary', 'google', 'browser'].includes(method)) {
+        if (['dictionary', 'browser'].includes(method)) {
             this.method = method;
-            currentAudioMethod = method;
+            console.log(`Audio method set to: ${method}`);
+        } else {
+            console.warn(`Attempted to set invalid audio method: ${method}. Allowed: dictionary, browser.`);
         }
     }
 
@@ -38,7 +41,6 @@ class AudioManager {
     setVolume(volume) {
         if (volume >= 0 && volume <= 1) {
             this.volume = volume;
-            audioVolume = volume;
         }
     }
 
@@ -46,7 +48,6 @@ class AudioManager {
     setRate(rate) {
         if (rate >= 0.1 && rate <= 2.0) {
             this.rate = rate;
-            speechRate = rate;
         }
     }
 
@@ -54,7 +55,6 @@ class AudioManager {
     setPitch(pitch) {
         if (pitch >= 0.0 && pitch <= 2.0) {
             this.pitch = pitch;
-            speechPitch = pitch;
         }
     }
 
@@ -66,6 +66,7 @@ class AudioManager {
     // Disable audio
     disable() {
         this.isEnabled = false;
+        this.stopCurrentAudio();
     }
 
     // Check if audio is enabled
@@ -73,178 +74,142 @@ class AudioManager {
         return this.isEnabled;
     }
 
+    stopCurrentAudio() {
+        if (this.currentAudioElement && !this.currentAudioElement.paused) {
+            this.currentAudioElement.pause();
+            this.currentAudioElement.currentTime = 0;
+            console.log("Stopped current audio playback.");
+        }
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            console.log("Cancelled speech synthesis.");
+        }
+    }
+
     // Play word using current method
     async playWord(word) {
-        if (!this.isEnabled) {
+        if (!this.isEnabled || !word) {
             return false;
         }
-
         this.currentWord = word;
+        this.stopCurrentAudio();
 
         try {
+            let success = false;
             switch (this.method) {
                 case 'dictionary':
-                    return await this.playWithDictionary(word);
-                case 'google':
-                    return await this.playWithGoogle(word);
+                    success = await this.playWithDictionary(word);
+                    break;
                 case 'browser':
-                    return await this.playWithBrowser(word);
+                    success = await this.playWithBrowser(word);
+                    break;
                 default:
-                    return await this.playWithDictionary(word);
+                    console.warn(`Unknown or unsupported audio method: ${this.method}, defaulting to browser.`);
+                    success = await this.playWithBrowser(word);
+                    break;
             }
+            return success;
         } catch (error) {
-            console.error('Audio playback failed:', error);
+            console.error(`Audio playback failed for word "${word}" using method "${this.method}":`, error);
             return false;
         }
     }
 
+    async playAudioElement(audioUrl) {
+        return new Promise((resolve, reject) => {
+            this.currentAudioElement = new Audio(audioUrl);
+            this.currentAudioElement.volume = this.volume;
+            this.currentAudioElement.crossOrigin = 'anonymous';
+            this.currentAudioElement.onended = () => {
+                this.currentAudioElement = null;
+                resolve(true);
+            }
+            this.currentAudioElement.onerror = (e) => {
+                console.error('Audio element playback error:', e, 'URL:', audioUrl);
+                this.currentAudioElement = null;
+                reject(e);
+            };
+            this.currentAudioElement.onabort = () => {
+                console.log('Audio element playback aborted.', 'URL:', audioUrl);
+                this.currentAudioElement = null;
+                resolve(false);
+            };
+            this.currentAudioElement.play().catch(playError => {
+                console.error('Audio element .play() rejected:', playError, 'URL:', audioUrl);
+                this.currentAudioElement = null;
+                reject(playError);
+            });
+        });
+    }
+
     // Play word using dictionary API
     async playWithDictionary(word) {
-        // Check cache first for faster loading
-        if (this.cache.has(word)) {
-            const cachedAudioUrl = this.cache.get(word);
+        const cacheKey = `dict_${word}`;
+        if (this.cache.has(cacheKey)) {
+            const cachedAudioUrl = this.cache.get(cacheKey);
             if (cachedAudioUrl) {
                 try {
-                    const audio = new Audio(cachedAudioUrl);
-                    audio.volume = this.volume;
-                    await audio.play();
-                    return true; // Success with cached audio
+                    console.log('Playing from dictionary cache:', word);
+                    return await this.playAudioElement(cachedAudioUrl);
                 } catch (audioError) {
-                    console.log('Cached audio playback failed, trying fresh API call');
-                    this.cache.delete(word); // Remove bad cache entry
+                    console.log('Dictionary cached audio playback failed, trying fresh API call');
+                    this.cache.delete(cacheKey);
                 }
             } else {
-                // Cached as "no audio available", go straight to fallback
+                console.log('Dictionary cache indicates no audio for:', word, ', falling back to browser.');
                 return await this.playWithBrowser(word);
             }
         }
 
         try {
-            // Fetch from dictionary API with timeout for faster response
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-
-            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`, {
-                signal: controller.signal
-            });
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`, { signal: controller.signal });
             clearTimeout(timeoutId);
 
             if (response.ok) {
                 const data = await response.json();
-
-                // Look for audio URLs and prefer US pronunciation
-                let usAudioUrl = null;
-                let fallbackAudioUrl = null;
-
-                // Check all entries for audio
-                for (const entry of data) {
-                    if (entry.phonetics) {
-                        for (const phonetic of entry.phonetics) {
-                            if (phonetic.audio && phonetic.audio.trim() !== '') {
-                                // Prefer US pronunciation (contains "-us." in URL)
-                                if (phonetic.audio.includes('-us.')) {
-                                    usAudioUrl = phonetic.audio;
-                                    break;
-                                } else if (!fallbackAudioUrl) {
-                                    // Store first available as fallback
-                                    fallbackAudioUrl = phonetic.audio;
-                                }
-                            }
-                        }
-                        if (usAudioUrl) break;
-                    }
+                let audioUrl = null;
+                if (data && data.length > 0 && data[0].phonetics && data[0].phonetics.length > 0) {
+                    const usPhonetic = data[0].phonetics.find(p => p.audio && p.audio.includes('-us.'));
+                    const anyPhonetic = data[0].phonetics.find(p => p.audio && p.audio.trim() !== '');
+                    audioUrl = usPhonetic ? usPhonetic.audio : (anyPhonetic ? anyPhonetic.audio : null);
                 }
-
-                // Use US audio if available, otherwise use first available
-                const audioUrl = usAudioUrl || fallbackAudioUrl;
 
                 if (audioUrl) {
-                    // Cache the audio URL for faster future access
-                    this.cache.set(word, audioUrl);
-
-                    const audio = new Audio(audioUrl);
-                    audio.volume = this.volume;
-
-                    try {
-                        await audio.play();
-                        return true; // Success! Don't use fallback
-                    } catch (audioError) {
-                        console.log('Audio playback failed, falling back to speech synthesis');
-                    }
+                    this.cache.set(cacheKey, audioUrl);
+                    console.log('Playing from dictionary API:', word);
+                    return await this.playAudioElement(audioUrl);
                 } else {
-                    // Cache that no audio is available
-                    this.cache.set(word, null);
+                    this.cache.set(cacheKey, null);
+                    console.log('No audio URL from Dictionary API for:', word, ', falling back to browser.');
                 }
             }
         } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('Dictionary API timeout, falling back to speech synthesis');
-            } else {
-                console.log('Dictionary API failed, falling back to speech synthesis:', error);
-            }
+            if (error.name === 'AbortError') console.log('Dictionary API timeout for:', word, ', falling back to browser.');
+            else console.log('Dictionary API error for:', word, error, ', falling back to browser.');
         }
-
-        // Fallback to browser speech synthesis
         return await this.playWithBrowser(word);
-    }
-
-    // Play word using Google TTS
-    async playWithGoogle(word) {
-        try {
-            // Check cache first
-            const cacheKey = `google_${word}`;
-            if (this.cache.has(cacheKey)) {
-                const cachedAudioUrl = this.cache.get(cacheKey);
-                if (cachedAudioUrl) {
-                    const audio = new Audio(cachedAudioUrl);
-                    audio.volume = this.volume;
-                    await audio.play();
-                    return true;
-                }
-            }
-
-            // Generate Google TTS URL
-            const googleTTSUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(word)}&tl=en&client=tw-ob`;
-            
-            // Cache the URL
-            this.cache.set(cacheKey, googleTTSUrl);
-
-            const audio = new Audio(googleTTSUrl);
-            audio.volume = this.volume;
-            
-            // Set referer header if possible (may not work due to CORS)
-            audio.crossOrigin = 'anonymous';
-            
-            await audio.play();
-            return true;
-        } catch (error) {
-            console.log('Google TTS failed, falling back to browser speech:', error);
-            return await this.playWithBrowser(word);
-        }
     }
 
     // Play word using browser speech synthesis
     async playWithBrowser(word) {
+        console.log('Playing with browser speech synthesis:', word);
         return new Promise((resolve) => {
             if ('speechSynthesis' in window) {
-                // Stop any ongoing speech
-                speechSynthesis.cancel();
-
                 const utterance = new SpeechSynthesisUtterance(word);
-                
-                // Configure speech settings
+                utterance.lang = 'en-US';
                 utterance.rate = this.rate;
                 utterance.pitch = this.pitch;
                 utterance.volume = this.volume;
-
-                // Set up event handlers
                 utterance.onend = () => resolve(true);
-                utterance.onerror = () => resolve(false);
-
-                // Speak the word
+                utterance.onerror = (e) => {
+                    console.error('Browser speech synthesis error:', e);
+                    resolve(false);
+                };
                 speechSynthesis.speak(utterance);
             } else {
-                console.log('Speech synthesis not supported');
+                console.warn('Browser speech synthesis not supported.');
                 resolve(false);
             }
         });
@@ -253,14 +218,18 @@ class AudioManager {
     // Repeat current word
     async repeatCurrentWord() {
         if (this.currentWord) {
+            console.log('Repeating word:', this.currentWord);
             return await this.playWord(this.currentWord);
+        } else {
+            console.log('No current word to repeat.');
+            return false;
         }
-        return false;
     }
 
     // Clear audio cache
     clearCache() {
         this.cache.clear();
+        console.log('Audio cache cleared.');
     }
 
     // Get cache size
@@ -273,17 +242,13 @@ class AudioManager {
         const stats = {
             totalEntries: this.cache.size,
             dictionaryEntries: 0,
-            googleEntries: 0,
             nullEntries: 0
         };
 
         for (const [key, value] of this.cache.entries()) {
-            if (key.startsWith('google_')) {
-                stats.googleEntries++;
-            } else if (value === null) {
-                stats.nullEntries++;
-            } else {
-                stats.dictionaryEntries++;
+            if (key.startsWith('dict_')) {
+                if (value !== null) stats.dictionaryEntries++;
+                else stats.nullEntries++;
             }
         }
 
@@ -294,47 +259,22 @@ class AudioManager {
     async testAudio(testWord = 'test') {
         const results = {
             dictionary: false,
-            google: false,
             browser: false
         };
 
         const originalMethod = this.method;
 
-        // Test dictionary API
         this.setMethod('dictionary');
         results.dictionary = await this.playWord(testWord);
 
-        // Test Google TTS
-        this.setMethod('google');
-        results.google = await this.playWord(testWord);
-
-        // Test browser speech
         this.setMethod('browser');
         results.browser = await this.playWord(testWord);
 
-        // Restore original method
         this.setMethod(originalMethod);
-
         return results;
     }
 }
 
-// Create global audio manager instance
-const audioManager = new AudioManager();
-
-// Enhanced text-to-speech function (main interface)
-async function speakWord(word) {
-    return await audioManager.playWord(word);
-}
-
-// Function to repeat the current word
-function repeatWord(wordToRepeat) {
-    if (wordToRepeat && typeof speakWord === 'function') {
-        speakWord(wordToRepeat);
-    }
-}
-
-// Export functions for global access
-window.audioManager = audioManager;
-window.speakWord = speakWord;
-window.repeatWord = repeatWord;
+// Create and export a single instance of the AudioManager
+const audioManagerInstance = new AudioManager();
+export default audioManagerInstance;

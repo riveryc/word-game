@@ -1,9 +1,11 @@
 // Back button confirmation dialog functionality
 
+// import { removeRetryKeyboardShortcut } from './resultsInterface.js'; // Removed to break circular dependency
+
 let dialogConfirmationSelection = 'no'; // Default to 'no'
 
 // Show/hide back button based on current screen
-function updateBackButtonVisibility() {
+export function updateBackButtonVisibility() {
     const backButton = document.getElementById('back-button');
     const gameInterface = document.getElementById('game-interface');
     const levelSelection = document.getElementById('level-selection');
@@ -20,11 +22,11 @@ function updateBackButtonVisibility() {
 }
 
 // Show exit confirmation dialog
-function showExitConfirmation() {
+export function showExitConfirmation() {
     const overlay = document.getElementById('confirmation-overlay');
     if (overlay) {
         dialogConfirmationSelection = 'no'; // Reset to default
-        updateConfirmationSelection();
+        updateConfirmationSelectionVisuals(); // Renamed for clarity
         overlay.style.display = 'flex';
 
         // Focus on the dialog for keyboard navigation
@@ -36,7 +38,7 @@ function showExitConfirmation() {
 }
 
 // Hide exit confirmation dialog
-function hideExitConfirmation() {
+export function hideExitConfirmation() {
     const overlay = document.getElementById('confirmation-overlay');
     if (overlay) {
         overlay.style.display = 'none';
@@ -44,13 +46,13 @@ function hideExitConfirmation() {
 }
 
 // Select confirmation option (yes/no)
-function selectConfirmationOption(option) {
+export function selectConfirmationOption(option) {
     dialogConfirmationSelection = option;
-    updateConfirmationSelection();
+    updateConfirmationSelectionVisuals();
 }
 
 // Update visual selection of confirmation buttons
-function updateConfirmationSelection() {
+function updateConfirmationSelectionVisuals() {
     const noButton = document.getElementById('no-button');
     const yesButton = document.getElementById('yes-button');
 
@@ -61,11 +63,11 @@ function updateConfirmationSelection() {
 }
 
 // Confirm the selected option
-function confirmExitSelection() {
+export function confirmExitSelection() {
     if (dialogConfirmationSelection === 'yes') {
         // Exit to main menu
         hideExitConfirmation();
-        exitToMainMenu();
+        exitToMainMenu(true);
     } else {
         // Stay in game
         hideExitConfirmation();
@@ -73,32 +75,31 @@ function confirmExitSelection() {
 }
 
 // Exit to main menu function
-function exitToMainMenu() {
-    // Remove any existing keyboard shortcuts
-    if (typeof removeRetryKeyboardShortcut === 'function') {
-        removeRetryKeyboardShortcut();
+// The parameter `isConfirmedExit` is true if user explicitly chose to exit (e.g. via dialog)
+// and false if it's a programmatic exit (e.g. Escape from dialog simply hides it).
+export function exitToMainMenu(isConfirmedExit) {
+    if (isConfirmedExit) {
+        // Perform actions for a confirmed exit, like resetting game state if needed.
+        // The global game state reset is complex; gameManager should handle its own state reset.
+        // script.js might need to coordinate resets of other modules if necessary.
+        console.log("Exiting to main menu - confirmed.");
     }
 
-    // Hide all game screens
+    // Always perform these UI actions:
+    // removeRetryKeyboardShortcut(); // REMOVED - script.js will handle this
+
     document.getElementById('game-interface').style.display = 'none';
     document.getElementById('level-selection').style.display = 'none';
     document.getElementById('final-results').style.display = 'none';
     document.getElementById('content').style.display = 'none';
     document.getElementById('word-count-selection').style.display = 'none';
-
-    // Show data source selection (main menu)
+    document.getElementById('confirmation-overlay').style.display = 'none'; // Ensure dialog is hidden
     document.getElementById('data-source-selection').style.display = 'block';
 
-    // Update back button visibility
     updateBackButtonVisibility();
 
-    // Reset game state (only reset variables that exist)
-    if (typeof currentWordIndex !== 'undefined') currentWordIndex = 0;
-    if (typeof correctAnswers !== 'undefined') correctAnswers = 0;
-    if (typeof isRetryMode !== 'undefined') isRetryMode = false;
-    if (typeof waitingForContinue !== 'undefined') waitingForContinue = false;
-    if (typeof isProcessing !== 'undefined') isProcessing = false;
-    if (typeof lastFocusedInput !== 'undefined') lastFocusedInput = null;
+    // Explicitly do not reset global variables like currentWordIndex here.
+    // Each module should manage its own state or be reset by a coordinator (e.g. script.js on game start).
 }
 
 // Global keyboard event handler for confirmation dialog
@@ -111,7 +112,7 @@ function handleConfirmationKeydown(event) {
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault();
             dialogConfirmationSelection = dialogConfirmationSelection === 'no' ? 'yes' : 'no';
-            updateConfirmationSelection();
+            updateConfirmationSelectionVisuals();
         } else if (event.key === 'Enter') {
             event.preventDefault();
             confirmExitSelection();
@@ -140,19 +141,22 @@ function handleConfirmationKeydown(event) {
 }
 
 // Initialize back button and confirmation dialog
-function initializeConfirmationDialog() {
+export function initializeConfirmationDialogEventListeners() {
     // Add global keyboard event listener
     document.addEventListener('keydown', handleConfirmationKeydown);
 
     // Update back button visibility initially
     updateBackButtonVisibility();
-}
 
-// Export functions for global access
-window.updateBackButtonVisibility = updateBackButtonVisibility;
-window.showExitConfirmation = showExitConfirmation;
-window.hideExitConfirmation = hideExitConfirmation;
-window.selectConfirmationOption = selectConfirmationOption;
-window.confirmExitSelection = confirmExitSelection;
-window.exitToMainMenu = exitToMainMenu;
-window.initializeConfirmationDialog = initializeConfirmationDialog;
+    const backButton = document.getElementById('back-button');
+    if (backButton) backButton.addEventListener('click', showExitConfirmation);
+
+    const noButton = document.getElementById('no-button');
+    if (noButton) noButton.addEventListener('click', () => selectConfirmationOption('no'));
+
+    const yesButton = document.getElementById('yes-button');
+    if (yesButton) yesButton.addEventListener('click', confirmExitSelection); 
+    
+    // Initial call to set up button appearance based on default selection
+    updateConfirmationSelectionVisuals(); 
+}

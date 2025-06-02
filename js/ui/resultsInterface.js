@@ -1,7 +1,21 @@
 // Final results and retry interface functionality
 
+import { 
+    startRetryGame as startRetryGameInManager, 
+    getGameStatusForRetry,
+    getCurrentSelectedLevel 
+} from '../game/gameManager.js';
+import { getHasTimeLimit, getTimeoutPerLetter } from '../game/timerManager.js';
+import { updateBackButtonVisibility } from './confirmationDialog.js'; // Assuming this is exported from confirmationDialog.js
+
 // Show final results screen
-function showFinalResults() {
+// Parameters expected:
+// - correctAnswers: number
+// - totalWordsInGame: number
+// - resultsData: Array of { word: string, status: string, time: string, description: string, exampleSentence: string }
+// - canRetry: boolean (is wordRetryData.length > 0 from gameManager)
+// - isRetryModeFlag: boolean
+export function showFinalResults(correctAnswers, totalWordsInGame, resultsData, canRetry, isRetryModeFlag) {
     // Hide game interface and word count selection, show results
     document.getElementById('game-interface').style.display = 'none';
     document.getElementById('word-count-selection').style.display = 'none';
@@ -12,33 +26,40 @@ function showFinalResults() {
         updateBackButtonVisibility();
     }
 
-    // Calculate enhanced statistics
-    const perfectCount = wordResults.filter(result => result.result === 'success').length;
-    const timeoutCount = wordResults.filter(result => result.result === 'timeout').length;
-    const incorrectCount = wordResults.filter(result => result.result === 'incorrect').length;
-    const timeoutIncorrectCount = wordResults.filter(result => result.result === 'timeout_incorrect').length;
+    // Calculate enhanced statistics from resultsData (which now contains word details)
+    // resultsData items have: { word, status ('success', 'timeout', 'incorrect', 'timeout_incorrect'), time (string 'X.Xs') }
+    const perfectCount = resultsData.filter(result => result.status === 'success').length;
+    const timeoutCount = resultsData.filter(result => result.status === 'timeout').length;
+    const incorrectCount = resultsData.filter(result => result.status === 'incorrect').length;
+    const timeoutIncorrectCount = resultsData.filter(result => result.status === 'timeout_incorrect').length;
 
-    // Calculate average times
-    const perfectTimes = wordResults.filter(r => r.result === 'success').map(r => r.timeElapsed);
-    const timeoutTimes = wordResults.filter(r => r.result === 'timeout').map(r => r.timeElapsed);
-    const incorrectTimes = wordResults.filter(r => r.result === 'incorrect').map(r => r.timeElapsed);
-    const timeoutIncorrectTimes = wordResults.filter(r => r.result === 'timeout_incorrect').map(r => r.timeElapsed);
+    // Helper to parse time string 'X.Xs' to float
+    const parseTime = (timeStr) => parseFloat(timeStr.replace('s', ''));
+
+    const perfectTimes = resultsData.filter(r => r.status === 'success').map(r => parseTime(r.time));
+    const timeoutTimes = resultsData.filter(r => r.status === 'timeout').map(r => parseTime(r.time));
+    const incorrectTimes = resultsData.filter(r => r.status === 'incorrect').map(r => parseTime(r.time));
+    const timeoutIncorrectTimes = resultsData.filter(r => r.status === 'timeout_incorrect').map(r => parseTime(r.time));
 
     const avgPerfectTime = perfectTimes.length > 0 ? (perfectTimes.reduce((a, b) => a + b, 0) / perfectTimes.length) : 0;
     const avgTimeoutTime = timeoutTimes.length > 0 ? (timeoutTimes.reduce((a, b) => a + b, 0) / timeoutTimes.length) : 0;
     const avgIncorrectTime = incorrectTimes.length > 0 ? (incorrectTimes.reduce((a, b) => a + b, 0) / incorrectTimes.length) : 0;
     const avgTimeoutIncorrectTime = timeoutIncorrectTimes.length > 0 ? (timeoutIncorrectTimes.reduce((a, b) => a + b, 0) / timeoutIncorrectTimes.length) : 0;
 
-    const percentage = Math.round((perfectCount / totalWords) * 100);
+    const percentage = totalWordsInGame > 0 ? Math.round((perfectCount / totalWordsInGame) * 100) : 0;
+    
+    const currentLevel = getCurrentSelectedLevel(); // from gameManager
+    const gameHasTimeLimit = getHasTimeLimit(); // from timerManager
+    const gameTimeoutPerLetter = getTimeoutPerLetter(); // from timerManager
 
     let resultHTML = `
         <div style="margin-bottom: 20px;">
             <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
-            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
+            ${gameHasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${currentLevel}, ${gameTimeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${currentLevel}, No time limit</div>`}
         </div>
 
         <div style="font-size: 1.1em; margin-bottom: 20px;">
-            Perfect Score: ${perfectCount}/${totalWords} (${percentage}%)
+            Perfect Score: ${perfectCount}/${totalWordsInGame} (${percentage}%)
         </div>
 
         <div style="background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin: 20px 0;">
@@ -63,44 +84,18 @@ function showFinalResults() {
 
     resultHTML += `</div>`;
 
-    // Add retry buttons based on what needs to be retried
-    const retryWordsCount = wordRetryData.length;
-    if (retryWordsCount > 0) {
-        const timeoutRetryCount = wordRetryData.filter(w => w.reason === 'timeout').length;
-        const incorrectRetryCount = wordRetryData.filter(w => w.reason === 'incorrect').length;
-
-        resultHTML += `<div style="margin: 20px 0;">`;
-
-        if (timeoutRetryCount > 0 && incorrectRetryCount > 0) {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry All Words (${retryWordsCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    ${timeoutRetryCount} slow words + ${incorrectRetryCount} incorrect words
-                </div>
-            `;
-        } else if (timeoutRetryCount > 0) {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry Slow Words (${timeoutRetryCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    Practice for speed improvement
-                </div>
-            `;
-        } else {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry Incorrect Words (${incorrectRetryCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    Practice for accuracy improvement
-                </div>
-            `;
-        }
-
+    if (canRetry) {
+        // Determine counts for button text (wordRetryData itself is not directly accessed here anymore)
+        // This info would ideally come from gameManager if more detailed text is needed, 
+        // or script.js can prepare it. For now, generic text based on `canRetry`.
         resultHTML += `
+        <div style="margin: 20px 0;">
+            <button class="start-button" id="results-retry-button">
+                Retry Challenging Words
+            </button><br>
+            <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
+                Practice words that were incorrect or too slow.
+            </div>
             <div style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
                 💡 Tip: Press <strong>Enter</strong> to retry words
             </div>
@@ -109,75 +104,69 @@ function showFinalResults() {
         resultHTML += `<div style="margin: 20px 0; font-size: 1.2em; color: #90EE90;">🎉 Perfect Performance! 🎉</div>`;
     }
 
-    // Always show play again button
     resultHTML += `
-        <button class="start-button" onclick="restartGame()">Play Again</button>
+        <button class="start-button" id="results-play-again-button">Play Again</button>
     `;
 
     document.getElementById('final-score').innerHTML = resultHTML;
 
-    // Add keyboard shortcut ONLY if there are words to retry
-    if (retryWordsCount > 0) {
-        // Use setTimeout to ensure the page is fully rendered first
-        setTimeout(() => {
-            addRetryKeyboardShortcut();
-        }, 100);
+    // Add event listeners programmatically
+    if (canRetry) {
+        const retryButton = document.getElementById('results-retry-button');
+        if (retryButton) retryButton.addEventListener('click', startRetryGameInManager);
+    }
+    const playAgainButton = document.getElementById('results-play-again-button');
+    if (playAgainButton) playAgainButton.addEventListener('click', restartGame);
+    
+    if (canRetry) {
+        setTimeout(() => addRetryKeyboardShortcut(), 100);
     }
 }
 
-// Restart game function
-function restartGame() {
-    // Remove retry keyboard shortcut
+// Restart game function (goes back to data source selection)
+export function restartGame() {
     removeRetryKeyboardShortcut();
-
-    // Reset and show data source selection
     document.getElementById('final-results').style.display = 'none';
     document.getElementById('content').style.display = 'none';
     document.getElementById('level-selection').style.display = 'none';
     document.getElementById('word-count-selection').style.display = 'none';
     document.getElementById('data-source-selection').style.display = 'block';
-
-    // Update back button visibility
     if (typeof updateBackButtonVisibility === 'function') {
         updateBackButtonVisibility();
     }
 }
 
 // Add keyboard shortcut for retry functionality
-function addRetryKeyboardShortcut() {
+export function addRetryKeyboardShortcut() {
     document.addEventListener('keydown', handleRetryKeydown);
 }
 
 // Remove keyboard shortcut for retry functionality
-function removeRetryKeyboardShortcut() {
+export function removeRetryKeyboardShortcut() {
     document.removeEventListener('keydown', handleRetryKeydown);
 }
 
 // Handle Enter key press on final results page
-function handleRetryKeydown(event) {
+export function handleRetryKeydown(event) {
     if (event.key === 'Enter') {
-        // Only work if we're specifically on the final results page
-        const finalResults = document.getElementById('final-results');
-        const gameInterface = document.getElementById('game-interface');
+        const finalResultsDiv = document.getElementById('final-results');
+        const gameInterfaceDiv = document.getElementById('game-interface');
 
-        // Make sure we're on results page AND not in game
-        if (finalResults.style.display === 'block' && gameInterface.style.display === 'none') {
-            const retryWordsCount = wordRetryData.length;
-            if (retryWordsCount > 0) {
-                // Retry words that need retrying
-                event.preventDefault(); // Prevent any other Enter key behavior
-                startRetryGame();
-            } else {
-                // No words to retry, restart game instead
+        if (finalResultsDiv.style.display === 'block' && gameInterfaceDiv.style.display === 'none') {
+            const status = getGameStatusForRetry(); // from gameManager
+            if (status.canRetry) {
                 event.preventDefault();
-                restartGame();
+                startRetryGameInManager(); // from gameManager
+            } else {
+                event.preventDefault();
+                restartGame(); // local restartGame function
             }
         }
     }
 }
 
 // Calculate performance grade based on percentage
-function calculatePerformanceGrade(percentage) {
+export function calculatePerformanceGrade(percentage) {
     if (percentage >= 95) return { grade: 'A+', message: 'Outstanding!' };
     if (percentage >= 90) return { grade: 'A', message: 'Excellent!' };
     if (percentage >= 85) return { grade: 'A-', message: 'Very Good!' };
@@ -191,7 +180,7 @@ function calculatePerformanceGrade(percentage) {
 }
 
 // Get performance recommendations based on results
-function getPerformanceRecommendations(perfectCount, timeoutCount, incorrectCount, timeoutIncorrectCount, totalWords) {
+export function getPerformanceRecommendations(perfectCount, timeoutCount, incorrectCount, timeoutIncorrectCount, totalWords) {
     const recommendations = [];
     const percentage = totalWords > 0 ? Math.round((perfectCount / totalWords) * 100) : 0;
 
@@ -214,12 +203,3 @@ function getPerformanceRecommendations(perfectCount, timeoutCount, incorrectCoun
 
     return recommendations;
 }
-
-// Export functions for global access
-window.showFinalResults = showFinalResults;
-window.restartGame = restartGame;
-window.addRetryKeyboardShortcut = addRetryKeyboardShortcut;
-window.removeRetryKeyboardShortcut = removeRetryKeyboardShortcut;
-window.handleRetryKeydown = handleRetryKeydown;
-window.calculatePerformanceGrade = calculatePerformanceGrade;
-window.getPerformanceRecommendations = getPerformanceRecommendations;
