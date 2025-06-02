@@ -10,32 +10,37 @@ import {
     setCurrentDataSource,
     getCurrentDataSource
 } from './js/data/dataSourceHandler.js';
+import {
+    initializeFilterManager,
+    setBaseWordData as setBaseWordDataForFilters,
+    resetFilters as resetFiltersHandler
+} from './js/ui/filterManager.js';
 
 // Game state variables
-let allWords = [];
-let allDescriptions = [];
-let allExampleSentences = []; // New: example sentences for each word
-let allWordData = []; // Complete word data with all columns
-let filteredWordData = []; // Filtered word data based on user selection
+let allWords = []; // Will be updated by filterManager callback
+let allDescriptions = []; // Will be updated by filterManager callback
+let allExampleSentences = []; // Will be updated by filterManager callback
+let allWordData = []; // Base data set by dataSourceHandler, passed to filterManager
+let filteredWordData = []; // Will be updated by filterManager callback
 let gameWords = [];
 let gameDescriptions = [];
-let gameExampleSentences = []; // New: example sentences for game words
-let wordResults = []; // Track result for each word: enhanced with timing data
+let gameExampleSentences = [];
+let wordResults = [];
 let currentWordIndex = 0;
 let currentWord = '';
 let currentDescription = '';
-let currentExampleSentence = ''; // New: current example sentence
+let currentExampleSentence = '';
 let partialWord = '';
 let missingLetters = '';
 let correctAnswers = 0;
 let totalWords = 0;
 let isRetryMode = false;
-let lastFocusedInput = null; // Track the last focused input field
-let waitingForContinue = false; // Track if we're waiting for Enter to continue after incorrect answer
-let selectedLevel = 3; // Default to Level 3 (70% missing)
-let isProcessing = false; // Prevent rapid Enter key presses
-let selectedWordCount = 20; // Default number of words to practice
-
+let lastFocusedInput = null;
+let waitingForContinue = false;
+let selectedLevel = 3;
+let isProcessing = false;
+let selectedWordCount = 20;
+let wordRetryData = [];
 
 // Timer system variables - These are now managed by timerManager.js
 // let timeoutPerLetter = 5; 
@@ -45,19 +50,18 @@ let selectedWordCount = 20; // Default number of words to practice
 // let currentWordStartTime = null; 
 // let currentWordTimer = null; 
 // let timeElapsed = 0; 
-let wordRetryData = []; // Enhanced retry tracking: {word, reason, attempts, maxAttempts, originalIndex}
 
 // Data source variables - managed by dataSourceHandler.js
 // let currentDataSource = 'local'; 
 // let googleSheetsUrl = '';
 
-// Filter variables
-let availableGrades = [];
-let availableSources = [];
-let selectedGrades = [];
-let selectedSources = [];
-let dateFrom = '';
-let dateTo = '';
+// Filter variables - now managed by filterManager.js
+// let availableGrades = [];
+// let availableSources = [];
+// let selectedGrades = [];
+// let selectedSources = [];
+// let dateFrom = '';
+// let dateTo = '';
 
 // Data source selection functions (now mostly handled by dataSourceHandler.js)
 // function setupDataSourceSelection() { // MOVED
@@ -94,258 +98,59 @@ async function loadSelectedDataSource() {
 // ...
 // }
 
-// Filter functions
-function extractFilterOptions() {
-    availableGrades = [];
-    availableSources = [];
+// Filter functions - MOVED to filterManager.js
+// function extractFilterOptions() { ... }
+// function applyFilters() { ... }
+// function setupFilters() { ... }
+// function setupMultiSelect(containerId, options, selected, onChangeCallback) { ... }
 
-    allWordData.forEach(wordData => {
-        if (wordData.grade && !availableGrades.includes(wordData.grade)) {
-            availableGrades.push(wordData.grade);
-        }
-        if (wordData.source && !availableSources.includes(wordData.source)) {
-            availableSources.push(wordData.source);
-        }
-    });
+// This function updates the UI for selecting the number of words to practice from the filtered set.
+// The count of available filtered words is now handled by filterManager updating 'total-words-count' span.
+function updatePracticeWordCountSelectionUI() {
+    const numFilteredWords = allWords.length; // allWords is now the filtered list
+    console.log('[Script.js] updatePracticeWordCountSelectionUI - numFilteredWords (allWords.length):', numFilteredWords);
+    const wordCountSelectionDiv = document.getElementById('word-count-selection');
+    const wordCountInput = document.getElementById('word-count-input');
+    // const totalWordsCountSpan = document.getElementById('total-words-count'); // This is updated by filterManager
 
-    // Sort for better UX
-    availableGrades.sort();
-    availableSources.sort();
-
-    // Initialize selections (all selected by default)
-    selectedGrades = [...availableGrades];
-    selectedSources = [...availableSources];
-
-    // Initialize filtered data with all words
-    applyFilters();
-}
-
-function applyFilters() {
-    filteredWordData = allWordData.filter(wordData => {
-        // Date filter
-        if (dateFrom && wordData.date && wordData.date < dateFrom) return false;
-        if (dateTo && wordData.date && wordData.date > dateTo) return false;
-
-        // Grade filter (only apply if grades exist and some are selected)
-        if (availableGrades.length > 0 && selectedGrades.length > 0) {
-            if (wordData.grade && !selectedGrades.includes(wordData.grade)) return false;
-        }
-
-        // Source filter (only apply if sources exist and some are selected)
-        if (availableSources.length > 0 && selectedSources.length > 0) {
-            if (wordData.source && !selectedSources.includes(wordData.source)) return false;
-        }
-
-        return true;
-    });
-
-    // Update the arrays used by the game
-    allWords = filteredWordData.map(data => data.word);
-    allDescriptions = filteredWordData.map(data => data.description);
-    allExampleSentences = filteredWordData.map(data => data.exampleSentence || '');
-
-    // Update word count display
-    updateWordCountDisplay();
-}
-
-function updateWordCountDisplay() {
-    const wordCount = allWords.length;
-    const contentDiv = document.getElementById('content');
-
-    if (contentDiv) {
-        contentDiv.innerHTML = `
-            <div>Filtered words:</div>
-            <div class="word-count">${wordCount}</div>
-        `;
-    }
-
-    // Update word count selection if needed
-    if (wordCount > 30) {
-        const wordCountSelection = document.getElementById('word-count-selection');
-        if (wordCountSelection) {
-            wordCountSelection.style.display = 'block';
-            document.getElementById('total-words-count').textContent = wordCount;
-
-            const wordCountInput = document.getElementById('word-count-input');
-            wordCountInput.value = Math.min(20, wordCount);
-            wordCountInput.max = wordCount;
+    if (wordCountSelectionDiv && wordCountInput) {
+        if (numFilteredWords > 0) { // Only show if there are words to practice
+            wordCountSelectionDiv.style.display = 'block';
+            // totalWordsCountSpan.textContent = numFilteredWords; // Done by filterManager
+            
+            wordCountInput.value = Math.min(selectedWordCount, numFilteredWords); // Default to current selection or max available
+            wordCountInput.max = numFilteredWords;
             selectedWordCount = parseInt(wordCountInput.value);
+
+            // Ensure event listener for input changes is correctly set up
+            // (Consider moving this setup to an init function if not already robust)
+            const newWordCountInput = wordCountInput.cloneNode(true);
+            wordCountInput.parentNode.replaceChild(newWordCountInput, wordCountInput);
+            newWordCountInput.addEventListener('input', function() {
+                selectedWordCount = parseInt(this.value) || 1;
+                selectedWordCount = Math.max(1, Math.min(selectedWordCount, allWords.length)); // allWords is filtered list
+                this.value = selectedWordCount;
+            });
+
+        } else {
+            wordCountSelectionDiv.style.display = 'none';
+            selectedWordCount = 0;
         }
-    } else {
-        selectedWordCount = wordCount;
-        const wordCountSelection = document.getElementById('word-count-selection');
-        if (wordCountSelection) {
-            wordCountSelection.style.display = 'none';
-        }
     }
-}
-
-function setupFilters() {
-    // Only show filters if we have data that can be filtered
-    const hasFilterableData = availableGrades.length > 0 || availableSources.length > 0;
-
-    if (!hasFilterableData) {
-        document.getElementById('word-filters').style.display = 'none';
-        return;
-    }
-
-    document.getElementById('word-filters').style.display = 'block';
-
-    // Setup date filters
-    const dateFromInput = document.getElementById('date-from');
-    const dateToInput = document.getElementById('date-to');
-
-    if (dateFromInput) {
-        dateFromInput.addEventListener('change', function() {
-            dateFrom = this.value;
-            applyFilters();
-        });
-    }
-
-    if (dateToInput) {
-        dateToInput.addEventListener('change', function() {
-            dateTo = this.value;
-            applyFilters();
-        });
-    }
-
-    // Setup grade filters
-    setupMultiSelect('grade-filters', availableGrades, selectedGrades, function(newSelection) {
-        selectedGrades = newSelection;
-        applyFilters();
-    });
-
-    // Setup source filters
-    setupMultiSelect('source-filters', availableSources, selectedSources, function(newSelection) {
-        selectedSources = newSelection;
-        applyFilters();
-    });
-}
-
-function setupMultiSelect(containerId, options, selected, onChangeCallback) {
-    const container = document.getElementById(containerId);
-    if (!container || options.length === 0) {
-        if (container) container.style.display = 'none';
-        return;
-    }
-
-    container.style.display = 'block';
-    container.innerHTML = '';
-
-    options.forEach(option => {
-        const label = document.createElement('label');
-        label.className = 'filter-checkbox';
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = option;
-        checkbox.checked = selected.includes(option);
-
-        checkbox.addEventListener('change', function() {
-            if (this.checked) {
-                if (!selected.includes(option)) {
-                    selected.push(option);
-                }
-            } else {
-                const index = selected.indexOf(option);
-                if (index > -1) {
-                    selected.splice(index, 1);
-                }
-            }
-            onChangeCallback([...selected]);
-        });
-
-        const span = document.createElement('span');
-        span.textContent = option;
-
-        label.appendChild(checkbox);
-        label.appendChild(span);
-        container.appendChild(label);
-    });
 }
 
 function resetFilters() {
-    // Reset date filters
-    dateFrom = '';
-    dateTo = '';
-    document.getElementById('date-from').value = '';
-    document.getElementById('date-to').value = '';
-
-    // Reset grade and source selections
-    selectedGrades = [...availableGrades];
-    selectedSources = [...availableSources];
-
-    // Update checkboxes
-    document.querySelectorAll('#grade-filters input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = true;
-    });
-    document.querySelectorAll('#source-filters input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = true;
-    });
-
-    // Apply filters
-    applyFilters();
+    resetFiltersHandler(); // Call the imported handler function
+    // The filterManager will call onFiltersApplied, which will update script.js state and UI
 }
-
-// Function to focus the appropriate input field
-function focusAppropriateInput() {
-    const allInputs = document.querySelectorAll('.inline-input');
-
-    if (allInputs.length === 0) return;
-
-    // If we have a last focused input and it's still empty, focus it
-    if (lastFocusedInput && document.contains(lastFocusedInput) && !lastFocusedInput.value) {
-        lastFocusedInput.focus();
-        return;
-    }
-
-    // Otherwise, find the first empty input field
-    for (let input of allInputs) {
-        if (!input.value) {
-            input.focus();
-            return;
-        }
-    }
-
-    // If all fields are filled, focus the first one
-    allInputs[0].focus();
-}
-
-// Load words from local CSV file (MOVED to dataSourceHandler.js)
-// async function loadLocalCSV() { // MOVED
-// ...
-// }
 
 // Common function to show word count and level selection
 function showWordCountAndLevelSelection() {
-    updateWordCountDisplay();
+    document.getElementById('content').style.display = 'none'; // Hide loading message/content div
+    updatePracticeWordCountSelectionUI(); 
 
-    // Show level selection
     document.getElementById('level-selection').style.display = 'block';
-
-    // Update back button visibility
     updateBackButtonVisibility();
-
-    // Setup filters
-    setupFilters();
-
-    // Setup word count selection event listeners
-    const wordCount = allWords.length;
-    if (wordCount > 30) {
-        const wordCountInput = document.getElementById('word-count-input');
-        if (wordCountInput) {
-            // Remove existing event listeners to avoid duplicates
-            const newInput = wordCountInput.cloneNode(true);
-            wordCountInput.parentNode.replaceChild(newInput, wordCountInput);
-
-            // Add event listener for word count changes
-            newInput.addEventListener('input', function() {
-                selectedWordCount = parseInt(this.value) || 1;
-                selectedWordCount = Math.max(1, Math.min(selectedWordCount, allWords.length));
-                this.value = selectedWordCount;
-            });
-        }
-    }
 }
 
 // Level selection functions
@@ -959,15 +764,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize Data Source Handler with callbacks
     initializeDataSourceHandler({
         onDataLoaded: (parsedData) => {
-            allWords = parsedData.allWords;
-            allDescriptions = parsedData.allDescriptions;
-            allExampleSentences = parsedData.allExampleSentences;
-            allWordData = parsedData.allWordData;
-
-            // Extract filter options from the newly loaded data
-            extractFilterOptions();
-            // Show word count and level selection UI
-            showWordCountAndLevelSelection();
+            console.log('[Script.js] onDataLoaded - Received allWordData length:', parsedData.allWordData.length);
+            allWordData = parsedData.allWordData; // Set the base data in script.js
+            // Pass the base data to the filter manager to extract options and apply initial filters
+            setBaseWordDataForFilters(allWordData);
+            // The filterManager will call its onFiltersAppliedCallback, which is defined below.
         },
         onDataError: (errorMessage) => {
             // script.js can decide how to display this error, if different from handler's default
@@ -995,7 +796,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    setupDataSourceSelectionHandler(); // Call the renamed setup function from the handler
+    initializeFilterManager({
+        onFiltersApplied: (filteredResults) => {
+            console.log('[Script.js] onFiltersApplied - Received filteredResults.allWords length:', filteredResults.allWords.length);
+            // Update script.js state with the data processed by filterManager
+            allWords = filteredResults.allWords;
+            allDescriptions = filteredResults.allDescriptions;
+            allExampleSentences = filteredResults.allExampleSentences;
+            filteredWordData = filteredResults.filteredWordData; // The full filtered objects
+
+            // Now that filters are applied and script.js state is updated,
+            // update the UI that depends on the filtered word count.
+            showWordCountAndLevelSelection();
+        }
+    });
+
+    setupDataSourceSelectionHandler();
     initializeBackButton();
     initializeTimerManager();
 

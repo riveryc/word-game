@@ -117,6 +117,7 @@ export async function loadSelectedDataSource() {
         try {
             const csvText = await loadGoogleSheets(url);
             const parsedData = parseGoogleSheetsData(csvText);
+            console.log('[DataSourceHandler] Google Sheets - Parsed data word count:', parsedData.allWords.length);
             if (onDataLoadedCallback) onDataLoadedCallback(parsedData);
         } catch (error) {
             console.error('Error loading or parsing Google Sheets data:', error);
@@ -143,6 +144,7 @@ export async function loadSelectedDataSource() {
             try {
                 const csvText = event.target.result;
                 const parsedData = parseGoogleSheetsData(csvText); // Re-use existing parser
+                console.log('[DataSourceHandler] Local CSV Upload - Parsed data word count:', parsedData.allWords.length);
                 if (onDataLoadedCallback) onDataLoadedCallback(parsedData);
             } catch (error) {
                 console.error('Error processing uploaded CSV:', error);
@@ -310,6 +312,7 @@ export async function loadLocalCSVData() {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const text = await response.text();
         const parsedData = parseGoogleSheetsData(text); // Use the same parser
+        console.log('[DataSourceHandler] Default CSV - Parsed data word count:', parsedData.allWords.length);
 
         if (onDataLoadedCallback) onDataLoadedCallback(parsedData);
 
