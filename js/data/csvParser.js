@@ -130,7 +130,7 @@ export function parseCSVAdvanced(csvText, options = {}) {
  * @param {boolean} trimFields - Whether to trim field values
  * @returns {Array} - Array of field values
  */
-function parseCSVLine(line, delimiter = ',', trimFields = true) {
+export function parseCSVLine(line, delimiter = ',', trimFields = true) {
     const fields = [];
     let currentField = '';
     let inQuotes = false;

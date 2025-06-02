@@ -1,3 +1,7 @@
+import { parseCSVLine } from './js/data/csvParser.js';
+import { shuffleArray } from './js/utils/helpers.js';
+import { validateTimeoutInput } from './js/utils/validation.js';
+
 // Game state variables
 let allWords = [];
 let allDescriptions = [];
@@ -161,48 +165,6 @@ function extractSheetId(url) {
 
 function generateCSVExportUrl(sheetId) {
     return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
-}
-
-async function loadGoogleSheets(url) {
-    // Show loading state
-    document.getElementById('data-source-selection').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
-    const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = '<div class="loading">Loading from Google Sheets...</div>';
-
-    try {
-        // Extract sheet ID from URL
-        const sheetId = extractSheetId(url);
-        if (!sheetId) {
-            throw new Error('Invalid Google Sheets URL. Please check the URL format.');
-        }
-
-        // Generate CSV export URL
-        const csvUrl = generateCSVExportUrl(sheetId);
-
-        // Fetch the CSV data
-        const response = await fetch(csvUrl);
-
-        if (!response.ok) {
-            if (response.status === 403) {
-                throw new Error('This Google Sheet is private. Please make it public or check sharing settings.');
-            } else if (response.status === 404) {
-                throw new Error('Google Sheet not found. Please check the URL.');
-            } else {
-                throw new Error(`Failed to load Google Sheet (Error ${response.status})`);
-            }
-        }
-
-        // Get the text content
-        const text = await response.text();
-
-        // Parse the 5-column CSV format
-        parseGoogleSheetsData(text);
-
-    } catch (error) {
-        console.error('Error loading Google Sheets:', error);
-        showDataSourceError(error.message);
-    }
 }
 
 function parseGoogleSheetsData(text) {
@@ -545,46 +507,6 @@ function hideWordInSentence(sentence, targetWord) {
     });
 }
 
-// Proper CSV parsing function that handles commas within quoted fields
-function parseCSVLine(line) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    let i = 0;
-
-    while (i < line.length) {
-        const char = line[i];
-
-        if (char === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-                // Handle escaped quotes ("")
-                current += '"';
-                i += 2;
-            } else {
-                // Toggle quote state
-                inQuotes = !inQuotes;
-                i++;
-            }
-        } else if (char === ',' && !inQuotes) {
-            // Found delimiter outside quotes
-            result.push(current);
-            current = '';
-            i++;
-        } else {
-            // Regular character
-            current += char;
-            i++;
-        }
-    }
-
-    // Add the last field
-    result.push(current);
-
-    return result;
-}
-
-
-
 // Function to focus the appropriate input field
 function focusAppropriateInput() {
     const allInputs = document.querySelectorAll('.inline-input');
@@ -689,16 +611,11 @@ function startGameWithLevel() {
     startGame();
 }
 
-function shuffleArray(array) {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-}
-
 function createPartialWord(word) {
+    if (!word || word.length === 0) {
+        return { wordStructure: [], missingLetters: '' };
+    }
+
     let wordStructure = [];
     let missingLetters = [];
 
@@ -1204,272 +1121,6 @@ function checkAnswer() {
     }
 }
 
-function showFinalResults() {
-    // Hide game interface and word count selection, show results
-    document.getElementById('game-interface').style.display = 'none';
-    document.getElementById('word-count-selection').style.display = 'none';
-    document.getElementById('final-results').style.display = 'block';
-
-    // Update back button visibility
-    updateBackButtonVisibility();
-
-    // Calculate enhanced statistics
-    const perfectCount = wordResults.filter(result => result.result === 'success').length;
-    const timeoutCount = wordResults.filter(result => result.result === 'timeout').length;
-    const incorrectCount = wordResults.filter(result => result.result === 'incorrect').length;
-    const timeoutIncorrectCount = wordResults.filter(result => result.result === 'timeout_incorrect').length;
-
-    // Calculate average times
-    const perfectTimes = wordResults.filter(r => r.result === 'success').map(r => r.timeElapsed);
-    const timeoutTimes = wordResults.filter(r => r.result === 'timeout').map(r => r.timeElapsed);
-    const incorrectTimes = wordResults.filter(r => r.result === 'incorrect').map(r => r.timeElapsed);
-    const timeoutIncorrectTimes = wordResults.filter(r => r.result === 'timeout_incorrect').map(r => r.timeElapsed);
-
-    const avgPerfectTime = perfectTimes.length > 0 ? (perfectTimes.reduce((a, b) => a + b, 0) / perfectTimes.length) : 0;
-    const avgTimeoutTime = timeoutTimes.length > 0 ? (timeoutTimes.reduce((a, b) => a + b, 0) / timeoutTimes.length) : 0;
-    const avgIncorrectTime = incorrectTimes.length > 0 ? (incorrectTimes.reduce((a, b) => a + b, 0) / incorrectTimes.length) : 0;
-    const avgTimeoutIncorrectTime = timeoutIncorrectTimes.length > 0 ? (timeoutIncorrectTimes.reduce((a, b) => a + b, 0) / timeoutIncorrectTimes.length) : 0;
-
-    const percentage = Math.round((perfectCount / totalWords) * 100);
-
-    let resultHTML = `
-        <div style="margin-bottom: 20px;">
-            <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
-            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
-        </div>
-
-        <div style="font-size: 1.1em; margin-bottom: 20px;">
-            Perfect Score: ${perfectCount}/${totalWords} (${percentage}%)
-        </div>
-
-        <div style="background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin: 20px 0;">
-            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 10px;">📊 Performance Summary:</div>
-    `;
-
-    if (perfectCount > 0) {
-        resultHTML += `<div style="color: #90EE90; margin: 5px 0;">✅ Perfect: ${perfectCount} words (avg: ${avgPerfectTime.toFixed(1)}s)</div>`;
-    }
-
-    if (timeoutCount > 0) {
-        resultHTML += `<div style="color: #FFD700; margin: 5px 0;">⚠️ Correct but slow: ${timeoutCount} words (avg: ${avgTimeoutTime.toFixed(1)}s)</div>`;
-    }
-
-    if (incorrectCount > 0) {
-        resultHTML += `<div style="color: #FFB6C1; margin: 5px 0;">❌ Incorrect: ${incorrectCount} words (avg: ${avgIncorrectTime.toFixed(1)}s)</div>`;
-    }
-
-    if (timeoutIncorrectCount > 0) {
-        resultHTML += `<div style="color: #FF6B6B; margin: 5px 0;">❌⚠️ Wrong & slow: ${timeoutIncorrectCount} words (avg: ${avgTimeoutIncorrectTime.toFixed(1)}s)</div>`;
-    }
-
-    resultHTML += `</div>`;
-
-    // Add retry buttons based on what needs to be retried
-    const retryWordsCount = wordRetryData.length;
-    if (retryWordsCount > 0) {
-        const timeoutRetryCount = wordRetryData.filter(w => w.reason === 'timeout').length;
-        const incorrectRetryCount = wordRetryData.filter(w => w.reason === 'incorrect').length;
-
-        resultHTML += `<div style="margin: 20px 0;">`;
-
-        if (timeoutRetryCount > 0 && incorrectRetryCount > 0) {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry All Words (${retryWordsCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    ${timeoutRetryCount} slow words + ${incorrectRetryCount} incorrect words
-                </div>
-            `;
-        } else if (timeoutRetryCount > 0) {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry Slow Words (${timeoutRetryCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    Practice for speed improvement
-                </div>
-            `;
-        } else {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry Incorrect Words (${incorrectRetryCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    Practice for accuracy improvement
-                </div>
-            `;
-        }
-
-        resultHTML += `
-            <div style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
-                💡 Tip: Press <strong>Enter</strong> to retry words
-            </div>
-        </div>`;
-    } else {
-        resultHTML += `<div style="margin: 20px 0; font-size: 1.2em; color: #90EE90;">🎉 Perfect Performance! 🎉</div>`;
-    }
-
-    // Always show play again button
-    resultHTML += `
-        <button class="start-button" onclick="restartGame()">Play Again</button>
-    `;
-
-    document.getElementById('final-score').innerHTML = resultHTML;
-
-    // Add keyboard shortcut ONLY if there are words to retry
-    if (retryWordsCount > 0) {
-        // Use setTimeout to ensure the page is fully rendered first
-        setTimeout(() => {
-            addRetryKeyboardShortcut();
-        }, 100);
-    }
-}
-
-function restartGame() {
-    // Remove retry keyboard shortcut
-    removeRetryKeyboardShortcut();
-
-    // Reset and show data source selection
-    document.getElementById('final-results').style.display = 'none';
-    document.getElementById('content').style.display = 'none';
-    document.getElementById('level-selection').style.display = 'none';
-    document.getElementById('word-count-selection').style.display = 'none';
-    document.getElementById('data-source-selection').style.display = 'block';
-
-    // Update back button visibility
-    updateBackButtonVisibility();
-}
-
-// Add keyboard shortcut for retry functionality
-function addRetryKeyboardShortcut() {
-    document.addEventListener('keydown', handleRetryKeydown);
-}
-
-// Remove keyboard shortcut for retry functionality
-function removeRetryKeyboardShortcut() {
-    document.removeEventListener('keydown', handleRetryKeydown);
-}
-
-// Handle Enter key press on final results page
-function handleRetryKeydown(event) {
-    if (event.key === 'Enter') {
-        // Only work if we're specifically on the final results page
-        const finalResults = document.getElementById('final-results');
-        const gameInterface = document.getElementById('game-interface');
-
-        // Make sure we're on results page AND not in game
-        if (finalResults.style.display === 'block' && gameInterface.style.display === 'none') {
-            const retryWordsCount = wordRetryData.length;
-            if (retryWordsCount > 0) {
-                // Retry words that need retrying
-                event.preventDefault(); // Prevent any other Enter key behavior
-                startRetryGame();
-            }
-        }
-    }
-}
-
-// Back button and confirmation dialog functionality
-let confirmationSelection = 'no'; // Default to 'no'
-
-// Show/hide back button based on current screen
-function updateBackButtonVisibility() {
-    const backButton = document.getElementById('back-button');
-    const gameInterface = document.getElementById('game-interface');
-    const levelSelection = document.getElementById('level-selection');
-    const finalResults = document.getElementById('final-results');
-
-    // Show back button when in game interface, level selection, or final results
-    const shouldShow = (gameInterface && gameInterface.style.display === 'block') ||
-                      (levelSelection && levelSelection.style.display === 'block') ||
-                      (finalResults && finalResults.style.display === 'block');
-
-    if (backButton) {
-        backButton.style.display = shouldShow ? 'flex' : 'none';
-    }
-}
-
-// Show exit confirmation dialog
-function showExitConfirmation() {
-    const overlay = document.getElementById('confirmation-overlay');
-    if (overlay) {
-        confirmationSelection = 'no'; // Reset to default
-        updateConfirmationSelection();
-        overlay.style.display = 'flex';
-
-        // Focus on the dialog for keyboard navigation
-        const noButton = document.getElementById('no-button');
-        if (noButton) {
-            noButton.focus();
-        }
-    }
-}
-
-// Hide exit confirmation dialog
-function hideExitConfirmation() {
-    const overlay = document.getElementById('confirmation-overlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
-
-// Select confirmation option (yes/no)
-function selectConfirmationOption(option) {
-    confirmationSelection = option;
-    updateConfirmationSelection();
-}
-
-// Update visual selection of confirmation buttons
-function updateConfirmationSelection() {
-    const noButton = document.getElementById('no-button');
-    const yesButton = document.getElementById('yes-button');
-
-    if (noButton && yesButton) {
-        noButton.classList.toggle('selected', confirmationSelection === 'no');
-        yesButton.classList.toggle('selected', confirmationSelection === 'yes');
-    }
-}
-
-// Confirm the selected option
-function confirmExitSelection() {
-    if (confirmationSelection === 'yes') {
-        // Exit to main menu
-        hideExitConfirmation();
-        exitToMainMenu();
-    } else {
-        // Stay in game
-        hideExitConfirmation();
-    }
-}
-
-// Exit to main menu function
-function exitToMainMenu() {
-    // Remove any existing keyboard shortcuts
-    removeRetryKeyboardShortcut();
-
-    // Hide all game screens
-    document.getElementById('game-interface').style.display = 'none';
-    document.getElementById('level-selection').style.display = 'none';
-    document.getElementById('final-results').style.display = 'none';
-    document.getElementById('content').style.display = 'none';
-    document.getElementById('word-count-selection').style.display = 'none';
-
-    // Show data source selection (main menu)
-    document.getElementById('data-source-selection').style.display = 'block';
-
-    // Update back button visibility
-    updateBackButtonVisibility();
-
-    // Reset game state
-    currentWordIndex = 0;
-    correctAnswers = 0;
-    isRetryMode = false;
-    waitingForContinue = false;
-    isProcessing = false;
-    lastFocusedInput = null;
-}
-
 // Global keyboard event handler
 function handleGlobalKeydown(event) {
     const overlay = document.getElementById('confirmation-overlay');
@@ -1518,36 +1169,28 @@ function initializeBackButton() {
 }
 
 // Timer system functions
-function validateTimeoutInput() {
-    const input = document.getElementById('timeout-input');
-    const value = parseInt(input.value);
-
-    // Remove invalid class first
-    input.classList.remove('invalid');
-
-    if (isNaN(value) || value < 0) {
-        input.value = 5; // Reset to default (5s per letter)
-        input.classList.add('invalid');
-        setTimeout(() => input.classList.remove('invalid'), 500);
-        return 5;
-    }
-
-    if (value > 99) {
-        input.value = 99; // Cap at maximum (99s per letter)
-        input.classList.add('invalid');
-        setTimeout(() => input.classList.remove('invalid'), 500);
-        return 99;
-    }
-
-    return value;
-}
-
 function updateTimeoutThreshold() {
-    const value = validateTimeoutInput();
-    timeoutPerLetter = value;
-    hasTimeLimit = value > 0;
+    const timeoutInputElement = document.getElementById('timeout-input');
 
-    // Update status display
+    if (!timeoutInputElement) {
+        console.warn("Timeout input element ('timeout-input') not found during updateTimeoutThreshold. Using defaults.");
+        timeoutPerLetter = 5; // Default timeout per letter
+        hasTimeLimit = timeoutPerLetter > 0;
+        updateTimeoutStatusDisplay();
+        return;
+    }
+
+    const currentInputValue = timeoutInputElement.value;
+    // validateTimeoutInput is imported from js/utils/validation.js
+    const validationResult = validateTimeoutInput(currentInputValue);
+
+    // Update the input field to reflect the validated (potentially corrected) value
+    timeoutInputElement.value = validationResult.value.toString();
+
+    timeoutPerLetter = validationResult.value;
+    // hasTimeLimit is true only if the input was valid AND the (numeric) value is greater than 0.
+    hasTimeLimit = validationResult.isValid && validationResult.value > 0;
+
     updateTimeoutStatusDisplay();
 }
 
@@ -1667,6 +1310,11 @@ function evaluateAnswerWithTiming(isCorrect, timeElapsed) {
         return 'incorrect'; // ❌ Wrong but within time limit
     }
 }
+
+window.loadSelectedDataSource = loadSelectedDataSource;
+window.startGameWithLevel = startGameWithLevel;
+window.selectLevel = selectLevel;
+window.resetFilters = resetFilters;
 
 // Initialize data source selection when the page loads
 document.addEventListener('DOMContentLoaded', function() {
