@@ -1,6 +1,7 @@
 import { parseCSVLine } from './js/data/csvParser.js';
 import { shuffleArray } from './js/utils/helpers.js';
 import { validateTimeoutInput } from './js/utils/validation.js';
+import { loadGoogleSheets } from './js/data/googleSheets.js';
 
 // Game state variables
 let allWords = [];
@@ -52,69 +53,119 @@ let dateTo = '';
 
 // Data source selection functions
 function setupDataSourceSelection() {
-    const localRadio = document.getElementById('local-csv');
+    const defaultRadio = document.getElementById('default-csv');
     const googleRadio = document.getElementById('google-sheets');
-    const googleInput = document.getElementById('google-sheets-input');
-    const localOption = document.getElementById('local-csv-option');
-    const googleOption = document.getElementById('google-sheets-option');
+    const localRadio = document.getElementById('local-csv'); // Added for Upload Local CSV
 
-    // Handle radio button changes
-    localRadio.addEventListener('change', function() {
-        if (this.checked) {
-            currentDataSource = 'local';
-            googleInput.style.display = 'none';
-            updateOptionSelection();
+    const googleInputSection = document.getElementById('google-sheets-input');
+    const localInputSection = document.getElementById('local-csv-input'); // Added for Upload Local CSV input section
+
+    const defaultOptionDiv = document.getElementById('default-csv-option');
+    const googleOptionDiv = document.getElementById('google-sheets-option');
+    const localOptionDiv = document.getElementById('local-csv-option'); // Added for Upload Local CSV option div
+
+    function updateSelectionUI() {
+        // Hide all input sections first
+        if (googleInputSection) googleInputSection.style.display = 'none';
+        if (localInputSection) localInputSection.style.display = 'none';
+
+        // Update radio checked state and div class based on currentDataSource
+        if (defaultRadio) defaultRadio.checked = (currentDataSource === 'default');
+        if (googleRadio) googleRadio.checked = (currentDataSource === 'google');
+        if (localRadio) localRadio.checked = (currentDataSource === 'local');
+        
+        if (defaultOptionDiv) defaultOptionDiv.classList.toggle('selected', currentDataSource === 'default');
+        if (googleOptionDiv) googleOptionDiv.classList.toggle('selected', currentDataSource === 'google');
+        if (localOptionDiv) localOptionDiv.classList.toggle('selected', currentDataSource === 'local');
+
+        // Show relevant input section
+        if (currentDataSource === 'google' && googleInputSection) {
+            googleInputSection.style.display = 'block';
+            const sheetsUrlInput = document.getElementById('sheets-url');
+            if (sheetsUrlInput) sheetsUrlInput.focus();
+        } else if (currentDataSource === 'local' && localInputSection) {
+            localInputSection.style.display = 'block';
+            const csvFileInput = document.getElementById('csv-file');
+            // if (csvFileInput) csvFileInput.focus(); // Focusing file input can be disruptive
         }
-    });
-
-    googleRadio.addEventListener('change', function() {
-        if (this.checked) {
-            currentDataSource = 'google';
-            googleInput.style.display = 'block';
-            updateOptionSelection();
-            // Focus on URL input
-            document.getElementById('sheets-url').focus();
-        }
-    });
-
-    // Handle clicking on option containers
-    localOption.addEventListener('click', function() {
-        localRadio.checked = true;
-        localRadio.dispatchEvent(new Event('change'));
-    });
-
-    googleOption.addEventListener('click', function() {
-        googleRadio.checked = true;
-        googleRadio.dispatchEvent(new Event('change'));
-    });
-
-    function updateOptionSelection() {
-        localOption.classList.toggle('selected', localRadio.checked);
-        googleOption.classList.toggle('selected', googleRadio.checked);
     }
 
-    // Initialize selection
-    updateOptionSelection();
+    function selectSource(source) {
+        currentDataSource = source;
+        updateSelectionUI();
+    }
+
+    // Event listeners for radio buttons
+    if (defaultRadio) defaultRadio.addEventListener('change', () => { if (defaultRadio.checked) selectSource('default'); });
+    if (googleRadio) googleRadio.addEventListener('change', () => { if (googleRadio.checked) selectSource('google'); });
+    if (localRadio) localRadio.addEventListener('change', () => { if (localRadio.checked) selectSource('local'); });
+
+    // Event listeners for clicking on option divs
+    if (defaultOptionDiv) defaultOptionDiv.addEventListener('click', () => selectSource('default'));
+    if (googleOptionDiv) googleOptionDiv.addEventListener('click', () => selectSource('google'));
+    if (localOptionDiv) localOptionDiv.addEventListener('click', () => selectSource('local'));
+
+    // Initialize based on default checked radio
+    if (defaultRadio && defaultRadio.checked) {
+        currentDataSource = 'default';
+    } else if (googleRadio && googleRadio.checked) {
+        currentDataSource = 'google';
+    } else if (localRadio && localRadio.checked) {
+        currentDataSource = 'local';
+    }
+    updateSelectionUI(); // Initial UI setup
 }
 
 function loadSelectedDataSource() {
-    if (currentDataSource === 'local') {
-        loadLocalCSV();
-    } else {
+    if (currentDataSource === 'default') {
+        loadLocalCSV(); // This loads words.csv by default
+    } else if (currentDataSource === 'google') {
         const url = document.getElementById('sheets-url').value.trim();
         if (!url) {
             showUrlError('Please enter a Google Sheets URL');
             return;
         }
-
-        // Basic URL validation
         if (!url.includes('docs.google.com/spreadsheets')) {
             showUrlError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
             return;
         }
-
         googleSheetsUrl = url;
-        loadGoogleSheets(url);
+        loadGoogleSheets(url); // Now correctly calls imported function
+    } else if (currentDataSource === 'local') {
+        const fileInput = document.getElementById('csv-file');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            showUrlError('Please select a CSV file to upload.'); // Reusing showUrlError for simplicity, might need a dedicated error display
+            return;
+        }
+        const file = fileInput.files[0];
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            showUrlError('Please select a valid .csv file.');
+            return;
+        }
+
+        document.getElementById('data-source-selection').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        const contentDiv = document.getElementById('content');
+        contentDiv.innerHTML = '<div class="loading">Loading from uploaded file...</div>';
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const csvText = event.target.result;
+                parseGoogleSheetsData(csvText); // Re-use existing parser for CSV structure
+            } catch (error) {
+                console.error('Error processing uploaded CSV:', error);
+                showDataSourceError(`Error processing uploaded CSV: ${error.message}`);
+            }
+        };
+        reader.onerror = function() {
+            console.error('Error reading file:', reader.error);
+            showDataSourceError(`Error reading file: ${reader.error.message}`);
+        };
+        reader.readAsText(file);
+    } else {
+        console.error('Unknown data source selected:', currentDataSource);
+        showDataSourceError('Invalid data source selected. Please try again.');
     }
 }
 
