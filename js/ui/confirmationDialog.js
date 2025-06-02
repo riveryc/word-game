@@ -1,6 +1,6 @@
 // Back button confirmation dialog functionality
 
-let confirmationSelection = 'no'; // Default to 'no'
+let dialogConfirmationSelection = 'no'; // Default to 'no'
 
 // Show/hide back button based on current screen
 function updateBackButtonVisibility() {
@@ -23,7 +23,7 @@ function updateBackButtonVisibility() {
 function showExitConfirmation() {
     const overlay = document.getElementById('confirmation-overlay');
     if (overlay) {
-        confirmationSelection = 'no'; // Reset to default
+        dialogConfirmationSelection = 'no'; // Reset to default
         updateConfirmationSelection();
         overlay.style.display = 'flex';
 
@@ -45,7 +45,7 @@ function hideExitConfirmation() {
 
 // Select confirmation option (yes/no)
 function selectConfirmationOption(option) {
-    confirmationSelection = option;
+    dialogConfirmationSelection = option;
     updateConfirmationSelection();
 }
 
@@ -55,14 +55,14 @@ function updateConfirmationSelection() {
     const yesButton = document.getElementById('yes-button');
 
     if (noButton && yesButton) {
-        noButton.classList.toggle('selected', confirmationSelection === 'no');
-        yesButton.classList.toggle('selected', confirmationSelection === 'yes');
+        noButton.classList.toggle('selected', dialogConfirmationSelection === 'no');
+        yesButton.classList.toggle('selected', dialogConfirmationSelection === 'yes');
     }
 }
 
 // Confirm the selected option
 function confirmExitSelection() {
-    if (confirmationSelection === 'yes') {
+    if (dialogConfirmationSelection === 'yes') {
         // Exit to main menu
         hideExitConfirmation();
         exitToMainMenu();
@@ -110,7 +110,7 @@ function handleConfirmationKeydown(event) {
         // Handle keyboard navigation in confirmation dialog
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault();
-            confirmationSelection = confirmationSelection === 'no' ? 'yes' : 'no';
+            dialogConfirmationSelection = dialogConfirmationSelection === 'no' ? 'yes' : 'no';
             updateConfirmationSelection();
         } else if (event.key === 'Enter') {
             event.preventDefault();
