@@ -118,7 +118,12 @@ export async function loadSelectedDataSource() {
             const csvText = await loadGoogleSheets(url);
             const parsedData = parseGoogleSheetsData(csvText);
             console.log('[DataSourceHandler] Google Sheets - Parsed data word count:', parsedData.allWords.length);
-            if (onDataLoadedCallback) onDataLoadedCallback(parsedData);
+            if (onDataLoadedCallback) {
+                console.log('[DataSourceHandler] Google Sheets - Calling onDataLoadedCallback.');
+                onDataLoadedCallback(parsedData);
+            } else {
+                console.error('[DataSourceHandler] Google Sheets - onDataLoadedCallback is not defined!');
+            }
         } catch (error) {
             console.error('Error loading or parsing Google Sheets data:', error);
             showDataSourceError(error.message || 'Failed to load Google Sheets.');
@@ -145,7 +150,12 @@ export async function loadSelectedDataSource() {
                 const csvText = event.target.result;
                 const parsedData = parseGoogleSheetsData(csvText); // Re-use existing parser
                 console.log('[DataSourceHandler] Local CSV Upload - Parsed data word count:', parsedData.allWords.length);
-                if (onDataLoadedCallback) onDataLoadedCallback(parsedData);
+                if (onDataLoadedCallback) {
+                    console.log('[DataSourceHandler] Local CSV Upload - Calling onDataLoadedCallback.');
+                    onDataLoadedCallback(parsedData);
+                } else {
+                    console.error('[DataSourceHandler] Local CSV Upload - onDataLoadedCallback is not defined!');
+                }
             } catch (error) {
                 console.error('Error processing uploaded CSV:', error);
                 showDataSourceError(`Error processing uploaded CSV: ${error.message}`);
@@ -306,19 +316,27 @@ export function goBackToDataSource() {
 
 // Renamed to avoid conflict, now part of this module
 export async function loadLocalCSVData() {
-    // No direct DOM manipulation for loading message here, script.js will handle it
+    const contentDiv = document.getElementById('content');
+    if (contentDiv) contentDiv.innerHTML = '<div class="loading">Loading default words...</div>';
+    
     try {
         const response = await fetch('words.csv');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const text = await response.text();
-        const parsedData = parseGoogleSheetsData(text); // Use the same parser
+        if (!response.ok) {
+            throw new Error(`Failed to fetch default words.csv: ${response.statusText}`);
+        }
+        const csvText = await response.text();
+        const parsedData = parseGoogleSheetsData(csvText); // Re-use existing parser for consistency
         console.log('[DataSourceHandler] Default CSV - Parsed data word count:', parsedData.allWords.length);
 
-        if (onDataLoadedCallback) onDataLoadedCallback(parsedData);
-
+        if (onDataLoadedCallback) {
+            console.log('[DataSourceHandler] Default CSV - Calling onDataLoadedCallback.');
+            onDataLoadedCallback(parsedData);
+        } else {
+            console.error('[DataSourceHandler] Default CSV - onDataLoadedCallback is not defined!');
+        }
     } catch (error) {
-        console.error('Error loading words.csv:', error);
-        showDataSourceError(`Error loading words.csv: ${error.message}`);
+        console.error('Error loading or parsing default words.csv:', error);
+        showDataSourceError(error.message || 'Failed to load default words.csv.');
         if (onGoBackCallback) onGoBackCallback(true); // Signal to go back, error state = true
     }
 } 

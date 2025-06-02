@@ -19,6 +19,7 @@ let availableWordsDisplayDiv = null; // For the new top-level display
 
 export function initializeFilterManager(callbacks) {
     onFiltersAppliedCallback = callbacks.onFiltersApplied;
+    console.log("[FilterManager] Initialized. onFiltersAppliedCallback:", onFiltersAppliedCallback);
 
     // Cache DOM elements
     dateFromInput = document.getElementById('date-from');
@@ -35,8 +36,9 @@ export function initializeFilterManager(callbacks) {
 
 export function setBaseWordData(allWordDataFromScript) {
     internalAllWordData = [...allWordDataFromScript];
-    console.log('[FilterManager] setBaseWordData - internalAllWordData length:', internalAllWordData.length);
+    console.log('[FilterManager] setBaseWordData called. internalAllWordData length:', internalAllWordData.length);
     extractFilterOptionsInternal();
+    console.log('[FilterManager] Calling applyFiltersInternal from setBaseWordData.');
     applyFiltersInternal(); // Apply initial filters (e.g., all selected)
     updateFilterSectionVisibility();
 }
@@ -71,6 +73,7 @@ function extractFilterOptionsInternal() {
 }
 
 function applyFiltersInternal() {
+    console.log('[FilterManager] applyFiltersInternal called.');
     const filteredWordData = internalAllWordData.filter(wordData => {
         if (dateFrom && wordData.date && wordData.date < dateFrom) return false;
         if (dateTo && wordData.date && wordData.date > dateTo) return false;
@@ -95,7 +98,7 @@ function applyFiltersInternal() {
     }
 
     if (onFiltersAppliedCallback) {
-        console.log('[FilterManager] applyFiltersInternal - Calling onFiltersAppliedCallback with newAllWords length:', newAllWords.length);
+        console.log('[FilterManager] applyFiltersInternal - Calling onFiltersAppliedCallback with newAllWords length:', newAllWords.length, 'Callback:', onFiltersAppliedCallback);
         onFiltersAppliedCallback({
             filteredWordData: filteredWordData,
             allWords: newAllWords,
