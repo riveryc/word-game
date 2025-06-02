@@ -35,7 +35,7 @@ let timeElapsed = 0; // Current elapsed time in seconds
 let wordRetryData = []; // Enhanced retry tracking: {word, reason, attempts, maxAttempts, originalIndex}
 
 // Data source variables
-let currentDataSource = 'default'; // 'default', 'google', or 'local'
+let currentDataSource = 'local'; // 'local' or 'google'
 let googleSheetsUrl = '';
 
 // Filter variables
@@ -48,21 +48,17 @@ let dateTo = '';
 
 // Data source selection functions
 function setupDataSourceSelection() {
-    const defaultRadio = document.getElementById('default-csv');
-    const googleRadio = document.getElementById('google-sheets');
     const localRadio = document.getElementById('local-csv');
+    const googleRadio = document.getElementById('google-sheets');
     const googleInput = document.getElementById('google-sheets-input');
-    const localInput = document.getElementById('local-csv-input');
-    const defaultOption = document.getElementById('default-csv-option');
-    const googleOption = document.getElementById('google-sheets-option');
     const localOption = document.getElementById('local-csv-option');
+    const googleOption = document.getElementById('google-sheets-option');
 
     // Handle radio button changes
-    defaultRadio.addEventListener('change', function() {
+    localRadio.addEventListener('change', function() {
         if (this.checked) {
-            currentDataSource = 'default';
+            currentDataSource = 'local';
             googleInput.style.display = 'none';
-            localInput.style.display = 'none';
             updateOptionSelection();
         }
     });
@@ -71,26 +67,16 @@ function setupDataSourceSelection() {
         if (this.checked) {
             currentDataSource = 'google';
             googleInput.style.display = 'block';
-            localInput.style.display = 'none';
             updateOptionSelection();
             // Focus on URL input
             document.getElementById('sheets-url').focus();
         }
     });
 
-    localRadio.addEventListener('change', function() {
-        if (this.checked) {
-            currentDataSource = 'local';
-            googleInput.style.display = 'none';
-            localInput.style.display = 'block';
-            updateOptionSelection();
-        }
-    });
-
     // Handle clicking on option containers
-    defaultOption.addEventListener('click', function() {
-        defaultRadio.checked = true;
-        defaultRadio.dispatchEvent(new Event('change'));
+    localOption.addEventListener('click', function() {
+        localRadio.checked = true;
+        localRadio.dispatchEvent(new Event('change'));
     });
 
     googleOption.addEventListener('click', function() {
@@ -98,15 +84,9 @@ function setupDataSourceSelection() {
         googleRadio.dispatchEvent(new Event('change'));
     });
 
-    localOption.addEventListener('click', function() {
-        localRadio.checked = true;
-        localRadio.dispatchEvent(new Event('change'));
-    });
-
     function updateOptionSelection() {
-        defaultOption.classList.toggle('selected', defaultRadio.checked);
-        googleOption.classList.toggle('selected', googleRadio.checked);
         localOption.classList.toggle('selected', localRadio.checked);
+        googleOption.classList.toggle('selected', googleRadio.checked);
     }
 
     // Initialize selection
@@ -114,39 +94,23 @@ function setupDataSourceSelection() {
 }
 
 function loadSelectedDataSource() {
-    if (currentDataSource === 'default') {
-        loadDefaultCSV();
-    } else if (currentDataSource === 'google') {
+    if (currentDataSource === 'local') {
+        loadLocalCSV();
+    } else {
         const url = document.getElementById('sheets-url').value.trim();
         if (!url) {
-            showDataSourceError('Please enter a Google Sheets URL');
+            showUrlError('Please enter a Google Sheets URL');
             return;
         }
 
         // Basic URL validation
         if (!url.includes('docs.google.com/spreadsheets')) {
-            showDataSourceError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
+            showUrlError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
             return;
         }
 
         googleSheetsUrl = url;
         loadGoogleSheets(url);
-    } else if (currentDataSource === 'local') {
-        const fileInput = document.getElementById('csv-file');
-        const file = fileInput.files[0];
-
-        if (!file) {
-            showDataSourceError('Please select a CSV file');
-            return;
-        }
-
-        // Validate file type
-        if (!file.name.toLowerCase().endsWith('.csv')) {
-            showDataSourceError('Please select a valid CSV file (must have .csv extension)');
-            return;
-        }
-
-        loadLocalFile(file);
     }
 }
 
@@ -765,13 +729,13 @@ function focusAppropriateInput() {
     allInputs[0].focus();
 }
 
-// Load words from default CSV file
-async function loadDefaultCSV() {
+// Load words from local CSV file
+async function loadLocalCSV() {
     // Show loading state
     document.getElementById('data-source-selection').style.display = 'none';
     document.getElementById('content').style.display = 'block';
     const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = '<div class="loading">Loading default word list...</div>';
+    contentDiv.innerHTML = '<div class="loading">Loading from local file...</div>';
 
     try {
         // Fetch the words.csv file
@@ -787,64 +751,10 @@ async function loadDefaultCSV() {
         // Reuse the same parsing logic as Google Sheets
         parseGoogleSheetsData(text);
 
-        // Show success and proceed to level selection
-        showWordCountAndLevelSelection();
-
     } catch (error) {
-        console.error('Error loading default CSV:', error);
-        showDataSourceError(`Failed to load default CSV file: ${error.message}`);
+        console.error('Error loading words:', error);
+        showDataSourceError(`Error loading words.csv: ${error.message}`);
     }
-}
-
-// Load words from user-selected local CSV file
-async function loadLocalFile(file) {
-    // Show loading state
-    document.getElementById('data-source-selection').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
-    const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = '<div class="loading">Loading your CSV file...</div>';
-
-    try {
-        // Read the file content
-        const text = await readFileAsText(file);
-
-        // Validate CSV format by checking for required columns
-        if (!validateCSVFormat(text)) {
-            throw new Error('Invalid CSV format. Please ensure your file has the required columns: word, date, grade, source, description');
-        }
-
-        // Parse the CSV data using the same logic as Google Sheets
-        parseGoogleSheetsData(text);
-
-        // Show success and proceed to level selection
-        showWordCountAndLevelSelection();
-
-    } catch (error) {
-        console.error('Error loading local file:', error);
-        showDataSourceError(`Failed to load CSV file: ${error.message}`);
-    }
-}
-
-// Helper function to read file as text
-function readFileAsText(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target.result);
-        reader.onerror = (error) => reject(error);
-        reader.readAsText(file);
-    });
-}
-
-// Helper function to validate CSV format
-function validateCSVFormat(csvText) {
-    const lines = csvText.trim().split('\n');
-    if (lines.length < 2) return false; // Need at least header + 1 data row
-
-    const header = lines[0].toLowerCase();
-    const requiredColumns = ['word'];
-
-    // Check if at least the 'word' column exists
-    return requiredColumns.every(col => header.includes(col));
 }
 
 // Common function to show word count and level selection
@@ -1412,318 +1322,13 @@ function checkAnswer() {
     }
 }
 
-function showFinalResults() {
-    // Hide game interface and word count selection, show results
-    document.getElementById('game-interface').style.display = 'none';
-    document.getElementById('word-count-selection').style.display = 'none';
-    document.getElementById('final-results').style.display = 'block';
 
-    // Update back button visibility
-    updateBackButtonVisibility();
 
-    // Calculate enhanced statistics
-    const perfectCount = wordResults.filter(result => result.result === 'success').length;
-    const timeoutCount = wordResults.filter(result => result.result === 'timeout').length;
-    const incorrectCount = wordResults.filter(result => result.result === 'incorrect').length;
-    const timeoutIncorrectCount = wordResults.filter(result => result.result === 'timeout_incorrect').length;
 
-    // Calculate average times
-    const perfectTimes = wordResults.filter(r => r.result === 'success').map(r => r.timeElapsed);
-    const timeoutTimes = wordResults.filter(r => r.result === 'timeout').map(r => r.timeElapsed);
-    const incorrectTimes = wordResults.filter(r => r.result === 'incorrect').map(r => r.timeElapsed);
-    const timeoutIncorrectTimes = wordResults.filter(r => r.result === 'timeout_incorrect').map(r => r.timeElapsed);
 
-    const avgPerfectTime = perfectTimes.length > 0 ? (perfectTimes.reduce((a, b) => a + b, 0) / perfectTimes.length) : 0;
-    const avgTimeoutTime = timeoutTimes.length > 0 ? (timeoutTimes.reduce((a, b) => a + b, 0) / timeoutTimes.length) : 0;
-    const avgIncorrectTime = incorrectTimes.length > 0 ? (incorrectTimes.reduce((a, b) => a + b, 0) / incorrectTimes.length) : 0;
-    const avgTimeoutIncorrectTime = timeoutIncorrectTimes.length > 0 ? (timeoutIncorrectTimes.reduce((a, b) => a + b, 0) / timeoutIncorrectTimes.length) : 0;
 
-    const percentage = Math.round((perfectCount / totalWords) * 100);
 
-    let resultHTML = `
-        <div style="margin-bottom: 20px;">
-            <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
-            ${hasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, ${timeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${selectedLevel}, No time limit</div>`}
-        </div>
 
-        <div style="font-size: 1.1em; margin-bottom: 20px;">
-            Perfect Score: ${perfectCount}/${totalWords} (${percentage}%)
-        </div>
-
-        <div style="background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin: 20px 0;">
-            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 10px;">📊 Performance Summary:</div>
-    `;
-
-    if (perfectCount > 0) {
-        resultHTML += `<div style="color: #90EE90; margin: 5px 0;">✅ Perfect: ${perfectCount} words (avg: ${avgPerfectTime.toFixed(1)}s)</div>`;
-    }
-
-    if (timeoutCount > 0) {
-        resultHTML += `<div style="color: #FFD700; margin: 5px 0;">⚠️ Correct but slow: ${timeoutCount} words (avg: ${avgTimeoutTime.toFixed(1)}s)</div>`;
-    }
-
-    if (incorrectCount > 0) {
-        resultHTML += `<div style="color: #FFB6C1; margin: 5px 0;">❌ Incorrect: ${incorrectCount} words (avg: ${avgIncorrectTime.toFixed(1)}s)</div>`;
-    }
-
-    if (timeoutIncorrectCount > 0) {
-        resultHTML += `<div style="color: #FF6B6B; margin: 5px 0;">❌⚠️ Wrong & slow: ${timeoutIncorrectCount} words (avg: ${avgTimeoutIncorrectTime.toFixed(1)}s)</div>`;
-    }
-
-    resultHTML += `</div>`;
-
-    // Add retry buttons based on what needs to be retried
-    const retryWordsCount = wordRetryData.length;
-    if (retryWordsCount > 0) {
-        const timeoutRetryCount = wordRetryData.filter(w => w.reason === 'timeout').length;
-        const incorrectRetryCount = wordRetryData.filter(w => w.reason === 'incorrect').length;
-
-        resultHTML += `<div style="margin: 20px 0;">`;
-
-        if (timeoutRetryCount > 0 && incorrectRetryCount > 0) {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry All Words (${retryWordsCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    ${timeoutRetryCount} slow words + ${incorrectRetryCount} incorrect words
-                </div>
-            `;
-        } else if (timeoutRetryCount > 0) {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry Slow Words (${timeoutRetryCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    Practice for speed improvement
-                </div>
-            `;
-        } else {
-            resultHTML += `
-                <button class="start-button" onclick="startRetryGame()">
-                    Retry Incorrect Words (${incorrectRetryCount})
-                </button><br>
-                <div style="font-size: 0.9em; opacity: 0.8; margin: 10px 0;">
-                    Practice for accuracy improvement
-                </div>
-            `;
-        }
-
-        resultHTML += `
-            <div style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
-                💡 Tip: Press <strong>Enter</strong> to retry words
-            </div>
-        </div>`;
-    } else {
-        resultHTML += `<div style="margin: 20px 0; font-size: 1.2em; color: #90EE90;">🎉 Perfect Performance! 🎉</div>`;
-    }
-
-    // Always show play again button
-    resultHTML += `
-        <button class="start-button" onclick="restartGame()">Play Again</button>
-    `;
-
-    document.getElementById('final-score').innerHTML = resultHTML;
-
-    // Add keyboard shortcut ONLY if there are words to retry
-    if (retryWordsCount > 0) {
-        // Use setTimeout to ensure the page is fully rendered first
-        setTimeout(() => {
-            addRetryKeyboardShortcut();
-        }, 100);
-    }
-}
-
-function restartGame() {
-    // Remove retry keyboard shortcut
-    removeRetryKeyboardShortcut();
-
-    // Reset and show data source selection
-    document.getElementById('final-results').style.display = 'none';
-    document.getElementById('content').style.display = 'none';
-    document.getElementById('level-selection').style.display = 'none';
-    document.getElementById('word-count-selection').style.display = 'none';
-    document.getElementById('data-source-selection').style.display = 'block';
-
-    // Update back button visibility
-    updateBackButtonVisibility();
-}
-
-// Add keyboard shortcut for retry functionality
-function addRetryKeyboardShortcut() {
-    document.addEventListener('keydown', handleRetryKeydown);
-}
-
-// Remove keyboard shortcut for retry functionality
-function removeRetryKeyboardShortcut() {
-    document.removeEventListener('keydown', handleRetryKeydown);
-}
-
-// Handle Enter key press on final results page
-function handleRetryKeydown(event) {
-    if (event.key === 'Enter') {
-        // Only work if we're specifically on the final results page
-        const finalResults = document.getElementById('final-results');
-        const gameInterface = document.getElementById('game-interface');
-
-        // Make sure we're on results page AND not in game
-        if (finalResults.style.display === 'block' && gameInterface.style.display === 'none') {
-            const retryWordsCount = wordRetryData.length;
-            if (retryWordsCount > 0) {
-                // Retry words that need retrying
-                event.preventDefault(); // Prevent any other Enter key behavior
-                startRetryGame();
-            }
-        }
-    }
-}
-
-// Back button and confirmation dialog functionality
-let confirmationSelection = 'no'; // Default to 'no'
-
-// Show/hide back button based on current screen
-function updateBackButtonVisibility() {
-    const backButton = document.getElementById('back-button');
-    const gameInterface = document.getElementById('game-interface');
-    const levelSelection = document.getElementById('level-selection');
-    const finalResults = document.getElementById('final-results');
-
-    // Show back button when in game interface, level selection, or final results
-    const shouldShow = (gameInterface && gameInterface.style.display === 'block') ||
-                      (levelSelection && levelSelection.style.display === 'block') ||
-                      (finalResults && finalResults.style.display === 'block');
-
-    if (backButton) {
-        backButton.style.display = shouldShow ? 'flex' : 'none';
-    }
-}
-
-// Show exit confirmation dialog
-function showExitConfirmation() {
-    const overlay = document.getElementById('confirmation-overlay');
-    if (overlay) {
-        confirmationSelection = 'no'; // Reset to default
-        updateConfirmationSelection();
-        overlay.style.display = 'flex';
-
-        // Focus on the dialog for keyboard navigation
-        const noButton = document.getElementById('no-button');
-        if (noButton) {
-            noButton.focus();
-        }
-    }
-}
-
-// Hide exit confirmation dialog
-function hideExitConfirmation() {
-    const overlay = document.getElementById('confirmation-overlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
-
-// Select confirmation option (yes/no)
-function selectConfirmationOption(option) {
-    confirmationSelection = option;
-    updateConfirmationSelection();
-}
-
-// Update visual selection of confirmation buttons
-function updateConfirmationSelection() {
-    const noButton = document.getElementById('no-button');
-    const yesButton = document.getElementById('yes-button');
-
-    if (noButton && yesButton) {
-        noButton.classList.toggle('selected', confirmationSelection === 'no');
-        yesButton.classList.toggle('selected', confirmationSelection === 'yes');
-    }
-}
-
-// Confirm the selected option
-function confirmExitSelection() {
-    if (confirmationSelection === 'yes') {
-        // Exit to main menu
-        hideExitConfirmation();
-        exitToMainMenu();
-    } else {
-        // Stay in game
-        hideExitConfirmation();
-    }
-}
-
-// Exit to main menu function
-function exitToMainMenu() {
-    // Remove any existing keyboard shortcuts
-    removeRetryKeyboardShortcut();
-
-    // Hide all game screens
-    document.getElementById('game-interface').style.display = 'none';
-    document.getElementById('level-selection').style.display = 'none';
-    document.getElementById('final-results').style.display = 'none';
-    document.getElementById('content').style.display = 'none';
-    document.getElementById('word-count-selection').style.display = 'none';
-
-    // Show data source selection (main menu)
-    document.getElementById('data-source-selection').style.display = 'block';
-
-    // Update back button visibility
-    updateBackButtonVisibility();
-
-    // Reset game state
-    currentWordIndex = 0;
-    correctAnswers = 0;
-    isRetryMode = false;
-    waitingForContinue = false;
-    isProcessing = false;
-    lastFocusedInput = null;
-}
-
-// Global keyboard event handler
-function handleGlobalKeydown(event) {
-    const overlay = document.getElementById('confirmation-overlay');
-    const isConfirmationVisible = overlay && overlay.style.display === 'flex';
-
-    if (isConfirmationVisible) {
-        // Handle keyboard navigation in confirmation dialog
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            event.preventDefault();
-            confirmationSelection = confirmationSelection === 'no' ? 'yes' : 'no';
-            updateConfirmationSelection();
-        } else if (event.key === 'Enter') {
-            event.preventDefault();
-            confirmExitSelection();
-        } else if (event.key === 'Escape') {
-            event.preventDefault();
-            hideExitConfirmation();
-        }
-    } else {
-        // Handle ESC key to show confirmation dialog
-        if (event.key === 'Escape') {
-            const gameInterface = document.getElementById('game-interface');
-            const levelSelection = document.getElementById('level-selection');
-            const finalResults = document.getElementById('final-results');
-
-            // Only show confirmation if we're in a screen that has the back button
-            const shouldShowConfirmation = (gameInterface && gameInterface.style.display === 'block') ||
-                                         (levelSelection && levelSelection.style.display === 'block') ||
-                                         (finalResults && finalResults.style.display === 'block');
-
-            if (shouldShowConfirmation) {
-                event.preventDefault();
-                showExitConfirmation();
-            }
-        }
-    }
-}
-
-// Initialize back button and confirmation dialog when the page loads
-function initializeBackButton() {
-    // Add global keyboard event listener
-    document.addEventListener('keydown', handleGlobalKeydown);
-
-    // Update back button visibility initially
-    updateBackButtonVisibility();
-}
 
 // Timer system functions
 function validateTimeoutInput() {
@@ -1879,6 +1484,6 @@ function evaluateAnswerWithTiming(isCorrect, timeElapsed) {
 // Initialize data source selection when the page loads
 document.addEventListener('DOMContentLoaded', function() {
     setupDataSourceSelection();
-    initializeBackButton();
+    initializeConfirmationDialog();
     setupTimeoutInput();
 });

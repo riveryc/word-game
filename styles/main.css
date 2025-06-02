@@ -1,0 +1,187 @@
+/* Main CSS - Core styles and layout */
+
+/* Base styles */
+body {
+    background-color: purple;
+    color: white;
+    font-family: Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    text-align: center;
+}
+
+.container {
+    padding: 40px;
+    border-radius: 10px;
+    background-color: rgba(128, 0, 128, 0.8);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Typography */
+h1 {
+    font-size: 2.5em;
+    margin-bottom: 20px;
+}
+
+/* Common states */
+.loading {
+    font-size: 1.2em;
+}
+
+.error {
+    color: #ffcccc;
+    font-size: 1.1em;
+}
+
+/* Buttons */
+.start-button {
+    background-color: #8A2BE2;
+    color: white;
+    border: 2px solid white;
+    padding: 15px 30px;
+    font-size: 1.5em;
+    font-family: Verdana, sans-serif;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: all 0.3s ease;
+}
+
+.start-button:hover {
+    background-color: white;
+    color: purple;
+}
+
+.repeat-button {
+    background-color: transparent;
+    color: white;
+    border: 2px solid white;
+    padding: 8px 15px;
+    font-size: 1.2em;
+    font-family: Verdana, sans-serif;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px;
+    transition: all 0.3s ease;
+}
+
+.repeat-button:hover {
+    background-color: white;
+    color: purple;
+}
+
+/* Game interface */
+.game-interface {
+    display: none;
+}
+
+.word-display {
+    font-size: 2.5em;
+    font-weight: bold;
+    margin: 30px 0;
+    letter-spacing: 3px;
+}
+
+.progress {
+    font-size: 2em;
+    margin: 20px 0;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* Input fields */
+.inline-input {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: purple;
+    border: none;
+    border-bottom: 2px solid white;
+    padding: 0;
+    font-size: 2.5em;
+    font-family: Verdana, sans-serif;
+    font-weight: bold;
+    text-align: center;
+    width: 1.2em;
+    margin: 0 2px;
+    background-color: transparent;
+    color: white;
+}
+
+.inline-input:focus {
+    outline: none;
+    border-bottom: 2px solid #90EE90;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.visible-letter {
+    font-size: 2.5em;
+    font-weight: bold;
+    margin: 0 2px;
+}
+
+/* Feedback */
+.feedback {
+    font-size: 1.3em;
+    margin: 20px 0;
+    min-height: 30px;
+}
+
+.correct {
+    color: #90EE90;
+}
+
+.incorrect {
+    color: #FFB6C1;
+}
+
+/* Results */
+.final-results {
+    display: none;
+    font-size: 1.5em;
+    margin: 30px 0;
+}
+
+.score {
+    font-size: 2em;
+    font-weight: bold;
+    margin: 20px 0;
+}
+
+.word-count {
+    font-size: 3em;
+    font-weight: bold;
+    margin: 20px 0;
+}
+
+/* Animations */
+@keyframes glow {
+    from {
+        box-shadow: 0 0 10px #90EE90;
+    }
+    to {
+        box-shadow: 0 0 20px #90EE90, 0 0 30px #90EE90;
+    }
+}
+
+@keyframes correctGlow {
+    from {
+        box-shadow: 0 0 10px rgba(144, 238, 144, 0.5);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(144, 238, 144, 0.8);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}

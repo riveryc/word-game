@@ -1,0 +1,281 @@
+/* Responsive CSS - Mobile and tablet styles */
+
+/* iPad and smaller tablets (portrait) */
+@media screen and (max-width: 1024px) and (orientation: portrait) {
+    .word-display {
+        font-size: 2em;
+        margin: 20px 0;
+        letter-spacing: 2px;
+    }
+
+    .inline-input {
+        font-size: 2em;
+        width: 1.1em;
+    }
+
+    .visible-letter {
+        font-size: 2em;
+    }
+
+    .correct-word-display {
+        font-size: 2em;
+        padding: 12px 20px;
+        margin: 15px 0;
+    }
+
+    .progress {
+        font-size: 1.6em;
+        margin: 15px 0;
+    }
+
+    .feedback {
+        font-size: 1.1em;
+    }
+
+    h1 {
+        font-size: 2em;
+    }
+
+    .start-button {
+        font-size: 1.3em;
+        padding: 12px 25px;
+    }
+
+    /* Data Source Selection - iPad */
+    .source-option {
+        width: 350px;
+        padding: 18px;
+    }
+
+    .source-title {
+        font-size: 1.2em;
+    }
+
+    .source-description {
+        font-size: 0.9em;
+    }
+}
+
+/* iPhone and small phones (portrait) */
+@media screen and (max-width: 480px) {
+    .container {
+        padding: 20px;
+        margin: 10px;
+    }
+
+    .word-display {
+        font-size: 1.5em;
+        margin: 15px 0;
+        letter-spacing: 1px;
+    }
+
+    .inline-input {
+        font-size: 1.5em;
+        width: 1em;
+        margin: 0 1px;
+    }
+
+    .visible-letter {
+        font-size: 1.5em;
+        margin: 0 1px;
+    }
+
+    .correct-word-display {
+        font-size: 1.5em;
+        padding: 10px 15px;
+        margin: 10px 0;
+        letter-spacing: 1px;
+    }
+
+    .progress {
+        font-size: 1.3em;
+        margin: 10px 0;
+    }
+
+    .feedback {
+        font-size: 1em;
+        margin: 15px 0;
+    }
+
+    h1 {
+        font-size: 1.8em;
+        margin-bottom: 15px;
+    }
+
+    .start-button {
+        font-size: 1.1em;
+        padding: 10px 20px;
+    }
+
+    .repeat-button {
+        font-size: 1em;
+        padding: 6px 12px;
+    }
+
+    .word-description {
+        font-size: 1.1em;
+        margin: 10px 0;
+    }
+
+    .level-title {
+        font-size: 1.3em;
+        margin-bottom: 15px;
+    }
+
+    .level-name {
+        font-size: 1.1em;
+    }
+
+    .level-description {
+        font-size: 0.9em;
+    }
+
+    .tts-title {
+        font-size: 1.1em;
+    }
+
+    .tts-name {
+        font-size: 1em;
+    }
+
+    .tts-description {
+        font-size: 0.8em;
+    }
+
+    .timeout-title {
+        font-size: 1.1em;
+    }
+
+    .timeout-input {
+        font-size: 1em;
+        padding: 6px 10px;
+        width: 70px;
+    }
+
+    .timeout-unit {
+        font-size: 1em;
+    }
+
+    /* Data Source Selection - iPhone */
+    .data-source-selection {
+        padding: 15px;
+    }
+
+    .source-options {
+        gap: 15px;
+        margin: 20px 0;
+    }
+
+    .source-option {
+        width: 100%;
+        max-width: 300px;
+        padding: 15px;
+        margin: 0 10px;
+    }
+
+    .source-option input[type="radio"] {
+        transform: scale(1.2);
+        top: 12px;
+        right: 12px;
+    }
+
+    .source-title {
+        font-size: 1.1em;
+        margin-bottom: 6px;
+    }
+
+    .source-description {
+        font-size: 0.85em;
+        line-height: 1.3;
+    }
+
+    /* Google Sheets Input - iPhone */
+    .google-sheets-input {
+        padding: 15px;
+        margin: 15px 0;
+    }
+
+    .input-section label {
+        font-size: 1.1em;
+        margin-bottom: 8px;
+    }
+
+    .sheets-url-input {
+        font-size: 0.9em;
+        padding: 10px 12px;
+        max-width: 100%;
+    }
+
+    .url-help {
+        font-size: 0.8em;
+        padding: 8px;
+        margin: 8px 0;
+    }
+}
+
+/* Very small phones (landscape) */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+    .container {
+        padding: 10px;
+        margin: 5px;
+    }
+
+    .word-display {
+        font-size: 1.3em;
+        margin: 10px 0;
+    }
+
+    .inline-input {
+        font-size: 1.3em;
+    }
+
+    .visible-letter {
+        font-size: 1.3em;
+    }
+
+    .correct-word-display {
+        font-size: 1.3em;
+        padding: 8px 12px;
+        margin: 8px 0;
+    }
+
+    .progress {
+        font-size: 1.1em;
+        margin: 8px 0;
+    }
+
+    h1 {
+        font-size: 1.5em;
+        margin-bottom: 10px;
+    }
+
+    .feedback {
+        font-size: 0.9em;
+        margin: 10px 0;
+    }
+
+    /* Data Source Selection - Landscape */
+    .data-source-selection {
+        padding: 10px;
+    }
+
+    .source-options {
+        gap: 10px;
+        margin: 15px 0;
+    }
+
+    .source-option {
+        width: 100%;
+        max-width: 280px;
+        padding: 12px;
+    }
+
+    .source-title {
+        font-size: 1em;
+        margin-bottom: 4px;
+    }
+
+    .source-description {
+        font-size: 0.8em;
+    }
+}
