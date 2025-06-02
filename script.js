@@ -1,7 +1,15 @@
 import { parseCSVLine } from './js/data/csvParser.js';
 import { shuffleArray } from './js/utils/helpers.js';
 import { validateTimeoutInput } from './js/utils/validation.js';
-import { loadGoogleSheets } from './js/data/googleSheets.js';
+import { initializeTimerManager, startWordTimer, stopWordTimer, getTimerEvaluationContext, getHasTimeLimit, getTimeoutPerLetter, getCurrentWordTimeoutThreshold, updateTimeoutThreshold } from './js/game/timerManager.js';
+import { hideWordInSentence } from './js/utils/sentenceUtils.js';
+import {
+    initializeDataSourceHandler,
+    setupDataSourceSelection as setupDataSourceSelectionHandler,
+    loadSelectedDataSource as loadSelectedDataSourceHandler,
+    setCurrentDataSource,
+    getCurrentDataSource
+} from './js/data/dataSourceHandler.js';
 
 // Game state variables
 let allWords = [];
@@ -29,19 +37,19 @@ let isProcessing = false; // Prevent rapid Enter key presses
 let selectedWordCount = 20; // Default number of words to practice
 
 
-// Timer system variables
-let timeoutPerLetter = 5; // Default 5 seconds per missing letter
-let currentWordTimeoutThreshold = 0; // Calculated timeout for current word (letters × timeoutPerLetter)
-let hasTimeLimit = true; // false when timeoutPerLetter = 0
-let showTimerDisplay = false; // Whether to show elapsed timer to user
-let currentWordStartTime = null; // When the current word started
-let currentWordTimer = null; // Timer interval for updating display
-let timeElapsed = 0; // Current elapsed time in seconds
+// Timer system variables - These are now managed by timerManager.js
+// let timeoutPerLetter = 5; 
+// let currentWordTimeoutThreshold = 0; 
+// let hasTimeLimit = true; 
+// let showTimerDisplay = false; 
+// let currentWordStartTime = null; 
+// let currentWordTimer = null; 
+// let timeElapsed = 0; 
 let wordRetryData = []; // Enhanced retry tracking: {word, reason, attempts, maxAttempts, originalIndex}
 
-// Data source variables
-let currentDataSource = 'local'; // 'local' or 'google'
-let googleSheetsUrl = '';
+// Data source variables - managed by dataSourceHandler.js
+// let currentDataSource = 'local'; 
+// let googleSheetsUrl = '';
 
 // Filter variables
 let availableGrades = [];
@@ -51,329 +59,40 @@ let selectedSources = [];
 let dateFrom = '';
 let dateTo = '';
 
-// Data source selection functions
-function setupDataSourceSelection() {
-    const defaultRadio = document.getElementById('default-csv');
-    const googleRadio = document.getElementById('google-sheets');
-    const localRadio = document.getElementById('local-csv'); // Added for Upload Local CSV
+// Data source selection functions (now mostly handled by dataSourceHandler.js)
+// function setupDataSourceSelection() { // MOVED
+// ...
+// }
 
-    const googleInputSection = document.getElementById('google-sheets-input');
-    const localInputSection = document.getElementById('local-csv-input'); // Added for Upload Local CSV input section
-
-    const defaultOptionDiv = document.getElementById('default-csv-option');
-    const googleOptionDiv = document.getElementById('google-sheets-option');
-    const localOptionDiv = document.getElementById('local-csv-option'); // Added for Upload Local CSV option div
-
-    function updateSelectionUI() {
-        // Hide all input sections first
-        if (googleInputSection) googleInputSection.style.display = 'none';
-        if (localInputSection) localInputSection.style.display = 'none';
-
-        // Update radio checked state and div class based on currentDataSource
-        if (defaultRadio) defaultRadio.checked = (currentDataSource === 'default');
-        if (googleRadio) googleRadio.checked = (currentDataSource === 'google');
-        if (localRadio) localRadio.checked = (currentDataSource === 'local');
-        
-        if (defaultOptionDiv) defaultOptionDiv.classList.toggle('selected', currentDataSource === 'default');
-        if (googleOptionDiv) googleOptionDiv.classList.toggle('selected', currentDataSource === 'google');
-        if (localOptionDiv) localOptionDiv.classList.toggle('selected', currentDataSource === 'local');
-
-        // Show relevant input section
-        if (currentDataSource === 'google' && googleInputSection) {
-            googleInputSection.style.display = 'block';
-            const sheetsUrlInput = document.getElementById('sheets-url');
-            if (sheetsUrlInput) sheetsUrlInput.focus();
-        } else if (currentDataSource === 'local' && localInputSection) {
-            localInputSection.style.display = 'block';
-            const csvFileInput = document.getElementById('csv-file');
-            // if (csvFileInput) csvFileInput.focus(); // Focusing file input can be disruptive
-        }
-    }
-
-    function selectSource(source) {
-        currentDataSource = source;
-        updateSelectionUI();
-    }
-
-    // Event listeners for radio buttons
-    if (defaultRadio) defaultRadio.addEventListener('change', () => { if (defaultRadio.checked) selectSource('default'); });
-    if (googleRadio) googleRadio.addEventListener('change', () => { if (googleRadio.checked) selectSource('google'); });
-    if (localRadio) localRadio.addEventListener('change', () => { if (localRadio.checked) selectSource('local'); });
-
-    // Event listeners for clicking on option divs
-    if (defaultOptionDiv) defaultOptionDiv.addEventListener('click', () => selectSource('default'));
-    if (googleOptionDiv) googleOptionDiv.addEventListener('click', () => selectSource('google'));
-    if (localOptionDiv) localOptionDiv.addEventListener('click', () => selectSource('local'));
-
-    // Initialize based on default checked radio
-    if (defaultRadio && defaultRadio.checked) {
-        currentDataSource = 'default';
-    } else if (googleRadio && googleRadio.checked) {
-        currentDataSource = 'google';
-    } else if (localRadio && localRadio.checked) {
-        currentDataSource = 'local';
-    }
-    updateSelectionUI(); // Initial UI setup
-}
-
+// Wrapper function in script.js to call the handler's loadSelectedDataSource
 async function loadSelectedDataSource() {
-    // Show loading state (this should be done before any async operation)
-    document.getElementById('data-source-selection').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
-    const contentDiv = document.getElementById('content');
-    
-    if (currentDataSource === 'default') {
-        contentDiv.innerHTML = '<div class="loading">Loading default words...</div>';
-        loadLocalCSV(); // This loads words.csv by default
-    } else if (currentDataSource === 'google') {
-        contentDiv.innerHTML = '<div class="loading">Loading from Google Sheets...</div>';
-        const url = document.getElementById('sheets-url').value.trim();
-        if (!url) {
-            showUrlError('Please enter a Google Sheets URL');
-            // Restore data source selection screen on error
-            document.getElementById('content').style.display = 'none';
-            document.getElementById('data-source-selection').style.display = 'block';
-            return;
-        }
-        if (!url.includes('docs.google.com/spreadsheets')) {
-            showUrlError('Please enter a valid Google Sheets URL (must contain "docs.google.com/spreadsheets")');
-            document.getElementById('content').style.display = 'none';
-            document.getElementById('data-source-selection').style.display = 'block';
-            return;
-        }
-        googleSheetsUrl = url;
-        try {
-            const csvText = await loadGoogleSheets(url); // Await the raw CSV text
-            parseGoogleSheetsData(csvText); // Parse it using the function in script.js
-        } catch (error) {
-            console.error('Error loading or parsing Google Sheets data:', error);
-            showDataSourceError(error.message || 'Failed to load Google Sheets.');
-            // Ensure content is hidden and data source selection is shown on error
-            document.getElementById('content').style.display = 'none';
-            document.getElementById('data-source-selection').style.display = 'block';
-        }
-    } else if (currentDataSource === 'local') {
-        contentDiv.innerHTML = '<div class="loading">Loading from uploaded file...</div>';
-        const fileInput = document.getElementById('csv-file');
-        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            showUrlError('Please select a CSV file to upload.'); // Reusing showUrlError for simplicity, might need a dedicated error display
-            return;
-        }
-        const file = fileInput.files[0];
-        if (!file.name.toLowerCase().endsWith('.csv')) {
-            showUrlError('Please select a valid .csv file.');
-            return;
-        }
-
-        document.getElementById('data-source-selection').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-        const contentDiv = document.getElementById('content');
-        contentDiv.innerHTML = '<div class="loading">Loading from uploaded file...</div>';
-
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            try {
-                const csvText = event.target.result;
-                parseGoogleSheetsData(csvText); // Re-use existing parser for CSV structure
-            } catch (error) {
-                console.error('Error processing uploaded CSV:', error);
-                showDataSourceError(`Error processing uploaded CSV: ${error.message}`);
-            }
-        };
-        reader.onerror = function() {
-            console.error('Error reading file:', reader.error);
-            showDataSourceError(`Error reading file: ${reader.error.message}`);
-        };
-        reader.readAsText(file);
-    } else {
-        console.error('Unknown data source selected:', currentDataSource);
-        showDataSourceError('Invalid data source selected. Please try again.');
-        // Restore data source selection screen on error
-        document.getElementById('content').style.display = 'none';
-        document.getElementById('data-source-selection').style.display = 'block';
-    }
+    // The handler will manage showing loading messages and calling back with data/errors
+    await loadSelectedDataSourceHandler();
 }
 
-function showUrlError(message) {
-    const urlInput = document.getElementById('sheets-url');
-    urlInput.style.borderColor = '#FF4444';
-    urlInput.style.backgroundColor = 'rgba(255, 68, 68, 0.1)';
+// function showUrlError(message) { // MOVED
+// ...
+// }
 
-    // Show error message
-    let errorDiv = document.getElementById('url-error');
-    if (!errorDiv) {
-        errorDiv = document.createElement('div');
-        errorDiv.id = 'url-error';
-        errorDiv.style.color = '#FF6666';
-        errorDiv.style.fontSize = '0.9em';
-        errorDiv.style.marginTop = '5px';
-        urlInput.parentNode.appendChild(errorDiv);
-    }
-    errorDiv.textContent = message;
+// Google Sheets integration functions (helpers, MOVED to dataSourceHandler.js)
+// function extractSheetId(url) { // MOVED
+// ... 
+// }
+// function generateCSVExportUrl(sheetId) { // MOVED
+// ... 
+// }
 
-    // Clear error on focus
-    urlInput.addEventListener('focus', function() {
-        this.style.borderColor = 'white';
-        this.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-        if (errorDiv) {
-            errorDiv.remove();
-        }
-    }, { once: true });
-}
+// function parseGoogleSheetsData(text) { // MOVED and modified in handler
+// ...
+// }
 
-// Google Sheets integration functions
-function extractSheetId(url) {
-    // Handle various Google Sheets URL formats
-    const patterns = [
-        /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,  // Standard format
-        /\/d\/([a-zA-Z0-9-_]+)/,               // Short format
-        /id=([a-zA-Z0-9-_]+)/                  // Query parameter format
-    ];
+// function showDataSourceError(message) { // MOVED and modified in handler
+// ...
+// }
 
-    for (const pattern of patterns) {
-        const match = url.match(pattern);
-        if (match) {
-            return match[1];
-        }
-    }
-    return null;
-}
-
-function generateCSVExportUrl(sheetId) {
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
-}
-
-function parseGoogleSheetsData(text) {
-    try {
-        // Parse CSV content
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-
-        if (lines.length < 2) {
-            throw new Error('Google Sheet appears to be empty or has no data rows.');
-        }
-
-        const header = lines[0].toLowerCase();
-        const dataLines = lines.slice(1);
-
-        // Check for required columns
-        const requiredColumns = ['word', 'description'];
-        const hasRequiredColumns = requiredColumns.every(col => header.includes(col));
-
-        if (!hasRequiredColumns) {
-            throw new Error('Google Sheet must contain at least "word" and "description" columns.');
-        }
-
-        // Parse each line
-        allWords = [];
-        allDescriptions = [];
-        allExampleSentences = [];
-        allWordData = [];
-
-        dataLines.forEach((line, index) => {
-            try {
-                const parsed = parseCSVLine(line);
-                if (parsed.length >= 6) {
-                    // 6-column format: word, date, grade, source, example sentence, description
-                    const word = parsed[0].trim();
-                    const date = parsed[1].trim();
-                    const grade = parsed[2].trim();
-                    const source = parsed[3].trim();
-                    const exampleSentence = parsed[4].trim();
-                    const description = parsed[5].trim();
-
-                    if (word && exampleSentence) {
-                        allWords.push(word.toLowerCase());
-                        allExampleSentences.push(exampleSentence);
-                        allDescriptions.push(description); // Keep for future use
-                        allWordData.push({
-                            word: word.toLowerCase(),
-                            date: date,
-                            grade: grade,
-                            source: source,
-                            exampleSentence: exampleSentence,
-                            description: description
-                        });
-                    }
-                } else if (parsed.length >= 5) {
-                    // 5-column format: word, date, grade, source, description (legacy)
-                    const word = parsed[0].trim();
-                    const date = parsed[1].trim();
-                    const grade = parsed[2].trim();
-                    const source = parsed[3].trim();
-                    const description = parsed[4].trim();
-
-                    if (word && description) {
-                        allWords.push(word.toLowerCase());
-                        allExampleSentences.push(''); // No example sentence
-                        allDescriptions.push(description);
-                        allWordData.push({
-                            word: word.toLowerCase(),
-                            date: date,
-                            grade: grade,
-                            source: source,
-                            exampleSentence: '',
-                            description: description
-                        });
-                    }
-                } else if (parsed.length >= 2) {
-                    // Fallback to 2-column format: word, description
-                    const word = parsed[0].trim();
-                    const description = parsed[1].trim();
-
-                    if (word && description) {
-                        allWords.push(word.toLowerCase());
-                        allExampleSentences.push(''); // No example sentence
-                        allDescriptions.push(description);
-                        allWordData.push({
-                            word: word.toLowerCase(),
-                            date: '',
-                            grade: '',
-                            source: '',
-                            exampleSentence: '',
-                            description: description
-                        });
-                    }
-                }
-            } catch (lineError) {
-                console.warn(`Error parsing line ${index + 2}:`, lineError);
-            }
-        });
-
-        if (allWords.length === 0) {
-            throw new Error('No valid word entries found in the Google Sheet.');
-        }
-
-        // Extract available grades and sources for filtering
-        extractFilterOptions();
-
-        // Show success and proceed to level selection
-        showWordCountAndLevelSelection();
-
-    } catch (error) {
-        throw new Error(`Error parsing Google Sheets data: ${error.message}`);
-    }
-}
-
-function showDataSourceError(message) {
-    const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = `
-        <div class="error">
-            <h2>❌ Loading Failed</h2>
-            <p>${message}</p>
-            <button class="start-button" onclick="goBackToDataSource()" style="margin-top: 20px;">
-                Try Again
-            </button>
-        </div>
-    `;
-}
-
-function goBackToDataSource() {
-    document.getElementById('content').style.display = 'none';
-    document.getElementById('data-source-selection').style.display = 'block';
-
-    // Update back button visibility
-    updateBackButtonVisibility();
-}
+// function goBackToDataSource() { // MOVED and modified in handler
+// ...
+// }
 
 // Filter functions
 function extractFilterOptions() {
@@ -568,21 +287,6 @@ function resetFilters() {
     applyFilters();
 }
 
-// Function to hide the target word in the example sentence
-function hideWordInSentence(sentence, targetWord) {
-    if (!sentence || !targetWord) {
-        return sentence || '';
-    }
-
-    // Create a regex to find the word (case insensitive, whole word)
-    const regex = new RegExp(`\\b${targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-
-    // Replace the word with underscores of the same length
-    return sentence.replace(regex, (match) => {
-        return '_'.repeat(match.length);
-    });
-}
-
 // Function to focus the appropriate input field
 function focusAppropriateInput() {
     const allInputs = document.querySelectorAll('.inline-input');
@@ -607,33 +311,10 @@ function focusAppropriateInput() {
     allInputs[0].focus();
 }
 
-// Load words from local CSV file
-async function loadLocalCSV() {
-    // Show loading state
-    document.getElementById('data-source-selection').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
-    const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = '<div class="loading">Loading from local file...</div>';
-
-    try {
-        // Fetch the words.csv file
-        const response = await fetch('words.csv');
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        // Get the text content
-        const text = await response.text();
-
-        // Reuse the same parsing logic as Google Sheets
-        parseGoogleSheetsData(text);
-
-    } catch (error) {
-        console.error('Error loading words:', error);
-        showDataSourceError(`Error loading words.csv: ${error.message}`);
-    }
-}
+// Load words from local CSV file (MOVED to dataSourceHandler.js)
+// async function loadLocalCSV() { // MOVED
+// ...
+// }
 
 // Common function to show word count and level selection
 function showWordCountAndLevelSelection() {
@@ -933,9 +614,8 @@ function showNextWord() {
 
     // Calculate timeout threshold for this word based on missing letters
     const missingLetterCount = wordData.wordStructure.filter(item => item.type === 'input').length;
-    currentWordTimeoutThreshold = hasTimeLimit ? (missingLetterCount * timeoutPerLetter) : 0;
-
-
+    // currentWordTimeoutThreshold = getHasTimeLimit() ? (missingLetterCount * getTimeoutPerLetter()) : 0; // Updated
+    // No, currentWordTimeoutThreshold is calculated and stored within startWordTimer
 
     // Speak the word
     if (typeof speakWord === 'function') {
@@ -943,7 +623,7 @@ function showNextWord() {
     }
 
     // Start the timer for this word
-    startWordTimer();
+    startWordTimer(missingLetterCount); // Pass missingLetterCount
 
     // Focus on first input field
     const firstInput = wordDisplayDiv.querySelector('.inline-input');
@@ -1054,7 +734,7 @@ function createWordComparison(userAnswers, expectedWord) {
 }
 
 function checkAnswer() {
-    // Don't process if we're already waiting for continue or processing
+    // Don't process if we're already waiting for continue or isProcessing
     if (waitingForContinue || isProcessing) {
         return;
     }
@@ -1085,6 +765,8 @@ function checkAnswer() {
         timeElapsed: finalTimeElapsed,
         result: result
     };
+    
+    const currentTimeoutThreshold = getCurrentWordTimeoutThreshold(); // Get from timerManager
 
     if (result === 'success') {
         // Perfect answer - correct and within time limit
@@ -1112,7 +794,7 @@ function checkAnswer() {
                 <span class="correct" style="font-size: 1.5em;">✅ Correct!</span><br>
                 <span style="color: #FFD700; font-size: 1.2em;">⚠️ But took too long</span><br>
                 <div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">
-                    Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${currentWordTimeoutThreshold}s for ${missingLetters.length} letters)
+                    Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${currentTimeoutThreshold}s for ${missingLetters.length} letters)
                 </div>
                 <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
                     This word will be retried once for speed practice
@@ -1135,7 +817,7 @@ function checkAnswer() {
             <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect!</span><br>
             <span style="color: #FFD700; font-size: 1.1em;">⚠️ And took too long</span><br>
             <div style="margin-top: 10px; font-size: 1.1em; color: #FFB6C1;">
-                Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${currentWordTimeoutThreshold}s for ${missingLetters.length} letters)
+                Time: ${finalTimeElapsed.toFixed(1)}s (limit: ${currentTimeoutThreshold}s for ${missingLetters.length} letters)
             </div>
             <div class="comparison-section">
                 <div style="margin-bottom: 15px;">
@@ -1246,131 +928,9 @@ function initializeBackButton() {
     updateBackButtonVisibility();
 }
 
-// Timer system functions
-function updateTimeoutThreshold() {
-    const timeoutInputElement = document.getElementById('timeout-input');
-
-    if (!timeoutInputElement) {
-        console.warn("Timeout input element ('timeout-input') not found during updateTimeoutThreshold. Using defaults.");
-        timeoutPerLetter = 5; // Default timeout per letter
-        hasTimeLimit = timeoutPerLetter > 0;
-        updateTimeoutStatusDisplay();
-        return;
-    }
-
-    const currentInputValue = timeoutInputElement.value;
-    // validateTimeoutInput is imported from js/utils/validation.js
-    const validationResult = validateTimeoutInput(currentInputValue);
-
-    // Update the input field to reflect the validated (potentially corrected) value
-    timeoutInputElement.value = validationResult.value.toString();
-
-    timeoutPerLetter = validationResult.value;
-    // hasTimeLimit is true only if the input was valid AND the (numeric) value is greater than 0.
-    hasTimeLimit = validationResult.isValid && validationResult.value > 0;
-
-    updateTimeoutStatusDisplay();
-}
-
-function updateTimeoutStatusDisplay() {
-    const statusDiv = document.getElementById('timeout-status');
-    if (!statusDiv) return;
-
-    if (hasTimeLimit) {
-        statusDiv.className = 'timeout-status with-limit';
-        statusDiv.innerHTML = `✅ Time limit: ${timeoutPerLetter} seconds per missing letter`;
-    } else {
-        statusDiv.className = 'timeout-status no-limit';
-        statusDiv.innerHTML = `⚡ No time limit - Practice mode`;
-    }
-}
-
-function setupTimeoutInput() {
-    const input = document.getElementById('timeout-input');
-    const checkbox = document.getElementById('show-timer-checkbox');
-
-    if (!input) return;
-
-    // Add event listeners for real-time validation
-    input.addEventListener('input', updateTimeoutThreshold);
-    input.addEventListener('blur', updateTimeoutThreshold);
-    input.addEventListener('change', updateTimeoutThreshold);
-
-    // Add event listener for timer display checkbox
-    if (checkbox) {
-        checkbox.addEventListener('change', function() {
-            showTimerDisplay = this.checked;
-        });
-
-        // Initialize checkbox state
-        showTimerDisplay = checkbox.checked; // Default is false (unchecked)
-    }
-
-    // Initialize with default value
-    updateTimeoutThreshold();
-}
-
-function startWordTimer() {
-    // Clear any existing timer
-    stopWordTimer();
-
-    // Record start time
-    currentWordStartTime = Date.now();
-    timeElapsed = 0;
-
-    // Show/hide timer based on user preference
-    const simpleTimer = document.getElementById('simple-timer');
-    if (simpleTimer) {
-        simpleTimer.style.display = showTimerDisplay ? 'block' : 'none';
-    }
-
-    // Start timer interval for display updates and timeout checking
-    currentWordTimer = setInterval(updateTimerDisplay, 1000); // Update every 1 second for whole seconds
-
-    // Initial display update
-    updateTimerDisplay();
-}
-
-function stopWordTimer() {
-    if (currentWordTimer) {
-        clearInterval(currentWordTimer);
-        currentWordTimer = null;
-    }
-
-    // Hide the timer
-    const simpleTimer = document.getElementById('simple-timer');
-    if (simpleTimer) {
-        simpleTimer.style.display = 'none';
-    }
-
-    // Calculate final elapsed time
-    if (currentWordStartTime) {
-        timeElapsed = (Date.now() - currentWordStartTime) / 1000; // Convert to seconds
-    }
-
-    return timeElapsed;
-}
-
-function updateTimerDisplay() {
-    // Calculate current elapsed time
-    if (currentWordStartTime) {
-        timeElapsed = (Date.now() - currentWordStartTime) / 1000;
-    }
-
-    // Update simple timer display if enabled
-    if (showTimerDisplay) {
-        const simpleTimer = document.getElementById('simple-timer');
-        if (simpleTimer) {
-            const elapsedSeconds = Math.floor(timeElapsed);
-            simpleTimer.textContent = `⏱️ ${elapsedSeconds}s`;
-        }
-    }
-
-    // NO AUTO-SUBMIT: Let kids take as long as they need
-    // Timeout evaluation happens only when they press Enter in checkAnswer()
-}
-
 function evaluateAnswerWithTiming(isCorrect, timeElapsed) {
+    const { hasTimeLimit, currentWordTimeoutThreshold } = getTimerEvaluationContext(); // Updated
+
     if (!hasTimeLimit || currentWordTimeoutThreshold === 0) {
         // No time limit - only check correctness
         return isCorrect ? 'success' : 'incorrect';
@@ -1396,7 +956,49 @@ window.resetFilters = resetFilters;
 
 // Initialize data source selection when the page loads
 document.addEventListener('DOMContentLoaded', function() {
-    setupDataSourceSelection();
+    // Initialize Data Source Handler with callbacks
+    initializeDataSourceHandler({
+        onDataLoaded: (parsedData) => {
+            allWords = parsedData.allWords;
+            allDescriptions = parsedData.allDescriptions;
+            allExampleSentences = parsedData.allExampleSentences;
+            allWordData = parsedData.allWordData;
+
+            // Extract filter options from the newly loaded data
+            extractFilterOptions();
+            // Show word count and level selection UI
+            showWordCountAndLevelSelection();
+        },
+        onDataError: (errorMessage) => {
+            // script.js can decide how to display this error, if different from handler's default
+            console.error("Data loading error (from script.js):", errorMessage);
+            // The handler already shows an error message, so this might be redundant unless script.js
+            // wants to do more.
+        },
+        onUrlError: (errorMessage) => {
+            // script.js can decide how to display this error
+            console.error("URL error (from script.js):", errorMessage);
+            // The handler already shows an error message for URL input.
+        },
+        onGoBack: (isErrorState) => {
+            // This callback is used when the handler determines a need to return to data source selection
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('data-source-selection').style.display = 'block';
+            if (isErrorState) {
+                // Potentially focus on the problematic input or show additional messages from script.js
+                if (getCurrentDataSource() === 'google') {
+                    const sheetsUrlInput = document.getElementById('sheets-url');
+                    if (sheetsUrlInput) sheetsUrlInput.focus();
+                }
+            }
+            updateBackButtonVisibility(); // This function is still in script.js
+        }
+    });
+
+    setupDataSourceSelectionHandler(); // Call the renamed setup function from the handler
     initializeBackButton();
-    setupTimeoutInput();
+    initializeTimerManager();
 });
+
+// Make loadSelectedDataSource globally available if it's called from HTML onclick
+window.loadSelectedDataSource = loadSelectedDataSource;
