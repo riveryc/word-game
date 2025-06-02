@@ -1,11 +1,13 @@
 import { initializeDataSourceHandler, setupDataSourceSelection as setupDataSourceSelectionHandler, getCurrentDataSource, loadSelectedDataSource } from './data/dataSourceHandler.js';
 import { initializeFilterManager, setBaseWordData as setBaseWordDataForFilters } from './ui/filterManager.js';
-import { initializeTimerManager, updateTimeoutThreshold as updateTimerTimeoutThreshold } from './game/timerManager.js';
-import { initializeGameManager, setGameConfig, updateSelectedLevel as updateGameManagerSelectedLevel, startGame as startGameInManager } from './game/gameManager.js';
-import { updateBackButtonVisibility, initializeConfirmationDialogEventListeners } from './ui/confirmationDialog.js';
-import { showFinalResults as showFinalResultsInterface } from './ui/resultsInterface.js';
+import { initializeTimerManager, updateTimeoutThreshold as updateTimerTimeoutThreshold, getTimerEvaluationContext, stopWordTimer, startWordTimer } from './game/timerManager.js';
+import { initializeGameManager, setGameConfig as setGameManagerConfigImport, updateSelectedLevel as updateGameManagerSelectedLevel, startGame as startGameInManager, getCurrentSelectedLevel as getGameManagerCurrentLevel, processAnswer, requestNextWordOrEndGameDisplay, getCurrentWord as getGameManagerCurrentWordFromManager } from './game/gameManager.js';
+import { updateBackButtonVisibility as updateConfirmationDialogBackButtonVisibility, initializeConfirmationDialogEventListeners } from './ui/confirmationDialog.js';
+import { showFinalResults as showFinalResultsInterfaceFromResults } from './ui/resultsInterface.js';
 import audioManager from './audio/audioManager.js';
-import { initializeGamePlayInterface, displayWordChallenge } from './ui/gamePlayInterface.js';
+import { initializeGamePlayInterface, displayWordChallenge as displayWordChallengeFromGamePlay } from './ui/gamePlayInterface.js';
+import { initializeGameSetupInterface, displayGameSetupScreen as displayGameSetupScreenFromSetup } from './ui/gameSetupInterface.js';
+import { initializeMainAppEventListeners } from './ui/globalEventListeners.js';
 
 // These might be needed by functions called within initializeApp, ensure they are defined or imported if necessary.
 // For now, assuming they are globals or will be passed/managed differently.
@@ -42,98 +44,100 @@ import { initializeGamePlayInterface, displayWordChallenge } from './ui/gamePlay
 // function initializeMainAppEventListeners() { /* ... */ } // This one calls handleGlobalKeydown
 
 
-export function initializeApp(dependencies) {
-    console.log('[core.js] initializeApp called. Received dependencies:', dependencies);
+// == State variables previously in script.js ==
+let allWords = [];
+let allDescriptions = [];
+let allExampleSentences = [];
+let allWordData = [];
+let filteredWordData = [];
+let scriptSelectedLevel = 1; 
+let scriptSelectedWordCount = 20; 
 
-    const {
-        setScriptGlobals, 
-        getScriptGlobals, 
-        showNextWordUICallback, 
-        showFinalResultsUI_scriptCallback, 
-        speakWord_scriptCallback, 
-        updateBackButtonVisibilityCallback, 
-        processAnswerInManagerCallback,
-        requestNextWordOrEndGameDisplayCallback,
-        getTimerEvaluationContextCallback,
-        stopWordTimerCallback,
-        startWordTimerCallback,
-        getGameManagerCurrentWordCallback,
-        initializeMainAppEventListeners_scriptCallback, 
-        showWordCountAndLevelSelectionScreen_scriptCallback // Expecting this from script.js
-    } = dependencies;
+// == Helper functions to manage state (previously in script.js) ==
+function setScriptGlobals(updatedGlobals) {
+    console.log("[core.js - setScriptGlobals] called with:", updatedGlobals);
+    if (updatedGlobals.hasOwnProperty('allWordData')) allWordData = updatedGlobals.allWordData;
+    if (updatedGlobals.hasOwnProperty('allWords')) allWords = updatedGlobals.allWords;
+    if (updatedGlobals.hasOwnProperty('allDescriptions')) allDescriptions = updatedGlobals.allDescriptions;
+    if (updatedGlobals.hasOwnProperty('allExampleSentences')) allExampleSentences = updatedGlobals.allExampleSentences;
+    if (updatedGlobals.hasOwnProperty('filteredWordData')) filteredWordData = updatedGlobals.filteredWordData;
+    if (updatedGlobals.hasOwnProperty('scriptSelectedLevel')) scriptSelectedLevel = updatedGlobals.scriptSelectedLevel;
+    if (updatedGlobals.hasOwnProperty('scriptSelectedWordCount')) scriptSelectedWordCount = updatedGlobals.scriptSelectedWordCount;
+}
 
-    console.log('[core.js] After destructuring - typeof showWordCountAndLevelSelectionScreen_scriptCallback:', typeof showWordCountAndLevelSelectionScreen_scriptCallback);
-    console.log('[core.js] After destructuring - typeof showFinalResultsUI_scriptCallback:', typeof showFinalResultsUI_scriptCallback);
-    console.log('[core.js] After destructuring - typeof speakWord_scriptCallback:', typeof speakWord_scriptCallback);
-    console.log('[core.js] After destructuring - typeof initializeMainAppEventListeners_scriptCallback:', typeof initializeMainAppEventListeners_scriptCallback);
+function getScriptGlobals() {
+    return {
+        allWordData,
+        allWords,
+        allDescriptions,
+        allExampleSentences,
+        filteredWordData,
+        scriptSelectedLevel,
+        scriptSelectedWordCount,
+    };
+}
+// == End of moved state and helper functions ==
 
-    const showFinalResultsUICallback = showFinalResultsUI_scriptCallback;
-    const speakWordCallback = speakWord_scriptCallback;
-    const initializeMainAppEventListenersCallback = initializeMainAppEventListeners_scriptCallback;
+// Renamed from initializeApp, no longer takes (dependencies) as scriptGlobals are local
+function setupApplication() { 
+    console.log("%%%%%%%%%%%%%%%% CORE setupApplication STARTS %%%%%%%%%%%%%%%%"); 
 
-    console.log('[core.js] After assignment - typeof showWordCountAndLevelSelectionScreen_scriptCallback (original):', typeof showWordCountAndLevelSelectionScreen_scriptCallback);
-    console.log('[core.js] After assignment - typeof showFinalResultsUICallback:', typeof showFinalResultsUICallback);
-    console.log('[core.js] After assignment - typeof speakWordCallback:', typeof speakWordCallback);
-    console.log('[core.js] After assignment - typeof initializeMainAppEventListenersCallback:', typeof initializeMainAppEventListenersCallback);
+    // Define core-internal callbacks that use the module-scoped getScriptGlobals/setScriptGlobals
+    function coreShowNextWordUI(data) {
+        console.log("[core.js coreShowNextWordUI] Called.");
+        displayWordChallengeFromGamePlay(data); 
+    }
 
-    // Moved listener setup logic into functions to be called at the right time
-    function coreSelectLevelUI(level) {
-        console.log('[core.js] coreSelectLevelUI called with level:', level);
-        updateGameManagerSelectedLevel(level);
-        document.querySelectorAll('.level-option').forEach(option => {
-            option.classList.remove('selected');
+    function coreShowFinalResultsUI(wordResults, wordRetryDataFromManager, correctAnswers, totalWordsInGame, isRetryModeFlag, gameWordObjectsForResults) {
+        console.log("[core.js coreShowFinalResultsUI] Called.");
+        const resultsDataForInterface = wordResults.map((res, index) => {
+            const gameWordObject = gameWordObjectsForResults && gameWordObjectsForResults[index] ? gameWordObjectsForResults[index] :
+                                   { word: res.word, description: '', exampleSentence: '' }; 
+            return {
+                word: gameWordObject.word,
+                status: res.result, 
+                time: res.timeElapsed.toFixed(1) + 's',
+                description: gameWordObject.description,
+                exampleSentence: gameWordObject.exampleSentence
+            };
         });
-        const selectedOption = document.querySelector(`.level-option[data-level="${level}"]`);
-        if (selectedOption) {
-            selectedOption.classList.add('selected');
+        const canRetry = wordRetryDataFromManager.length > 0;
+        showFinalResultsInterfaceFromResults(correctAnswers, totalWordsInGame, resultsDataForInterface, canRetry, isRetryModeFlag);
+    }
+
+    function coreSpeakWord(word) {
+        console.log("[core.js coreSpeakWord] Called for word:", word);
+        if (audioManager && typeof audioManager.playWord === 'function') {
+            audioManager.playWord(word).catch(error => {
+                console.warn("[core.js] Audio manager playWord failed:", error, "Word:", word);
+            });
         } else {
-            console.warn(`[core.js] Selected level ${level} UI option not found, defaulting to level 1.`);
-            document.querySelector('.level-option[data-level="1"]').classList.add('selected');
-            updateGameManagerSelectedLevel(1);
+            console.warn("[core.js] coreSpeakWord called, but audioManager or playWord function is not available. Word:", word);
         }
     }
 
-    function setupLevelSelectListeners() {
-        console.log('[core.js] setupLevelSelectListeners called.');
-        document.querySelectorAll('.level-option').forEach(option => {
-            // Remove old listener if any, though not strictly necessary if HTML is clean
-            const newOption = option.cloneNode(true);
-            option.parentNode.replaceChild(newOption, option);
-            newOption.addEventListener('click', function() {
-                coreSelectLevelUI(parseInt(this.dataset.level));
-            });
-        });
-        const initialGlobalsForLevel = getScriptGlobals();
-        coreSelectLevelUI(initialGlobalsForLevel.scriptSelectedLevel);
-    }
+    let coreSetupLevelSelectListeners; 
+    let coreSetupStartGameButtonListener;
 
-    function setupStartGameButtonListener() {
-        console.log('[core.js] setupStartGameButtonListener called.');
-        const startGameButton = document.querySelector('#level-selection .start-button');
-        if (startGameButton) {
-            // Remove old listener if any
-            const newButton = startGameButton.cloneNode(true);
-            startGameButton.parentNode.replaceChild(newButton, startGameButton);
-            newButton.addEventListener('click', () => {
-                console.log('[core.js] Start Game button clicked via new listener.');
-                if (typeof updateTimerTimeoutThreshold === 'function') {
-                    updateTimerTimeoutThreshold();
-                }
-                document.getElementById('level-selection').style.display = 'none';
-                document.getElementById('word-count-selection').style.display = 'none';
-                document.getElementById('game-interface').style.display = 'block';
-                const currentGlobals = getScriptGlobals();
-                startGameInManager(currentGlobals.allWords, currentGlobals.allDescriptions, currentGlobals.allExampleSentences);
-            });
-        } else {
-            console.warn('[core.js] Start Game button not found in setupStartGameButtonListener.');
-        }
+    function coreShowGameSetupScreen() {
+        console.log('[core.js] coreShowGameSetupScreen called. Will call displayGameSetupScreenFromSetup.'); 
+        displayGameSetupScreenFromSetup({
+            coreSetupLevelSelectListenersCallback: coreSetupLevelSelectListeners,
+            coreSetupStartGameButtonListenerCallback: coreSetupStartGameButtonListener
+        });
     }
+    // End of core-internal callback definitions
+
+    initializeGameSetupInterface({
+        onWordCountChange: setGameManagerConfigImport, 
+        getGlobalState: getScriptGlobals, // Use module-scoped getScriptGlobals
+        updateBackButtonVisibility: updateConfirmationDialogBackButtonVisibility
+    });
 
     initializeDataSourceHandler({
         onDataLoaded: (parsedData) => {
             console.log('[core.js] onDataLoaded triggered. Parsed data length:', parsedData.allWordData.length);
-            setScriptGlobals({ allWordData: parsedData.allWordData });
+            setScriptGlobals({ allWordData: parsedData.allWordData }); // Use module-scoped setScriptGlobals
             console.log('[core.js] Calling setBaseWordDataForFilters from onDataLoaded.');
             setBaseWordDataForFilters(parsedData.allWordData);
         },
@@ -146,70 +150,66 @@ export function initializeApp(dependencies) {
                 const sheetsUrlInput = document.getElementById('sheets-url');
                 if (sheetsUrlInput) sheetsUrlInput.focus();
             }
-            updateBackButtonVisibilityCallback();
+            updateConfirmationDialogBackButtonVisibility();
         }
     });
 
     initializeFilterManager({
         onFiltersApplied: (filteredResults) => {
             console.log('[core.js] onFiltersApplied triggered. Filtered results length:', filteredResults.allWords.length);
-            setScriptGlobals({
+            setScriptGlobals({ // Use module-scoped setScriptGlobals
                 allWords: filteredResults.allWords,
                 allDescriptions: filteredResults.allDescriptions,
                 allExampleSentences: filteredResults.allExampleSentences,
                 filteredWordData: filteredResults.filteredWordData
             });
-            console.log('[core.js] Calling showWordCountAndLevelSelectionScreen_scriptCallback from onFiltersApplied.');
-            if (typeof showWordCountAndLevelSelectionScreen_scriptCallback === 'function') {
-                // Pass the setup functions as arguments
-                showWordCountAndLevelSelectionScreen_scriptCallback(setupLevelSelectListeners, setupStartGameButtonListener);
-            } else {
-                console.error('[core.js] showWordCountAndLevelSelectionScreen_scriptCallback is not a function!');
-            }
-        }
-    });
-    
-    initializeTimerManager();
 
-    const scriptGlobals = getScriptGlobals();
+            const dataSourceSelectionDiv = document.getElementById('data-source-selection');
+            if (dataSourceSelectionDiv) dataSourceSelectionDiv.style.display = 'none';
+            
+            const contentDiv = document.getElementById('content');
+            if (contentDiv) contentDiv.style.display = 'block';
+
+            const loadingMessageDiv = document.querySelector('#content .loading');
+            if (loadingMessageDiv) loadingMessageDiv.style.display = 'none';
+
+            console.log('[core.js] Filtered words updated. About to call coreShowGameSetupScreen.');
+            coreShowGameSetupScreen();
+        },
+        getGlobalState: getScriptGlobals, // Use module-scoped getScriptGlobals
+        onWordCountChange: setGameManagerConfigImport
+    });
+
     initializeGameManager({ 
-        showNextWordUI: showNextWordUICallback, 
-        showFinalResultsUI: showFinalResultsUICallback, 
-        updateBackButtonVisibility: updateBackButtonVisibilityCallback, 
-        speakWord: speakWordCallback 
-    }, { 
-        selectedLevel: scriptGlobals.scriptSelectedLevel,
-        selectedWordCount: scriptGlobals.scriptSelectedWordCount
+        showNextWordUI: coreShowNextWordUI,
+        showFinalResultsUI: coreShowFinalResultsUI,
+        speakWord: coreSpeakWord,
+        getGlobalState: getScriptGlobals // Use module-scoped getScriptGlobals
     });
 
     initializeGamePlayInterface({
-        processAnswerFn: processAnswerInManagerCallback, 
-        requestNextWordFn: requestNextWordOrEndGameDisplayCallback,
-        getTimerContextFn: getTimerEvaluationContextCallback,
-        stopWordTimerFn: stopWordTimerCallback,
-        startWordTimerFn: startWordTimerCallback,
-        repeatWordFn: () => audioManager.repeatCurrentWord(),
-        getGameManagerCurrentWordFn: getGameManagerCurrentWordCallback 
+        processAnswer: processAnswer,
+        requestNextWordOrEndGameDisplay: requestNextWordOrEndGameDisplay,
+        getTimerEvaluationContext: getTimerEvaluationContext,
+        stopWordTimer: stopWordTimer,
+        startWordTimer: startWordTimer,
+        getCurrentWord: getGameManagerCurrentWordFromManager, 
+        speakWord: coreSpeakWord, 
+        audioManagerInstance: audioManager
     });
 
     setupDataSourceSelectionHandler();
     
     const loadDataButton = document.getElementById('load-data-button');
     if (loadDataButton) {
-        console.log('[core.js] Found load-data-button, attaching event listener.');
-        // Ensure listener is fresh by cloning node, standard practice for re-attaching if unsure.
-        const newLoadButton = loadDataButton.cloneNode(true);
-        loadDataButton.parentNode.replaceChild(newLoadButton, loadDataButton);
-        newLoadButton.addEventListener('click', () => {
-            console.log('[core.js] load-data-button clicked, calling loadSelectedDataSource.');
+        loadDataButton.addEventListener('click', () => {
             loadSelectedDataSource();
         });
-    } else {
-        console.warn('[core.js] load-data-button not found!');
     }
     
-    if (typeof initializeMainAppEventListenersCallback === 'function') {
-        initializeMainAppEventListenersCallback();
+    if (typeof initializeMainAppEventListeners === 'function') {
+        console.log("[core.js] Calling directly imported initializeMainAppEventListeners.");
+        initializeMainAppEventListeners();
     }
     
     if (typeof initializeConfirmationDialogEventListeners === 'function') {
@@ -221,7 +221,80 @@ export function initializeApp(dependencies) {
     document.getElementById('game-interface').style.display = 'none';
     document.getElementById('final-results').style.display = 'none';
     document.getElementById('word-count-selection').style.display = 'none';
-    updateBackButtonVisibilityCallback();
+    updateConfirmationDialogBackButtonVisibility();
 
-    console.log("Application initialized by core.js. Listener setup for level/start game will be triggered by script.js.");
-} 
+    console.log("Application UIs initialized by core.js.");
+
+    coreSetupLevelSelectListeners = () => {
+        console.log("[core.js] coreSetupLevelSelectListeners called.");
+        const levelOptions = document.querySelectorAll('.level-option');
+        levelOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                const level = parseInt(this.dataset.level);
+                coreSelectLevelUI(level); 
+            });
+        });
+        const currentGlobals = getScriptGlobals(); // Use module-scoped getScriptGlobals
+        coreSelectLevelUI(currentGlobals.scriptSelectedLevel || 1); 
+    };
+
+    coreSetupStartGameButtonListener = () => {
+        console.log("[core.js] coreSetupStartGameButtonListener called.");
+        const startGameButton = document.querySelector('#level-selection .start-button');
+        if (startGameButton) {
+            const newStartGameButton = startGameButton.cloneNode(true);
+            startGameButton.parentNode.replaceChild(newStartGameButton, startGameButton);
+            newStartGameButton.addEventListener('click', () => {
+                coreStartGame();
+            });
+        } else {
+            console.warn("[core.js] Start game button not found for listener setup.");
+        }
+    };
+
+    function coreSelectLevelUI(level) {
+        console.log(`[core.js] coreSelectLevelUI called with level: ${level}`);
+        setScriptGlobals({ scriptSelectedLevel: level }); // Use module-scoped setScriptGlobals
+        updateGameManagerSelectedLevel(level);
+
+        document.querySelectorAll('.level-option').forEach(option => {
+            option.classList.remove('selected');
+        });
+        const selectedOption = document.querySelector(`.level-option[data-level="${level}"]`);
+        if (selectedOption) {
+            selectedOption.classList.add('selected');
+        } else {
+            console.warn(`[core.js] Selected level ${level} DOM element not found, defaulting to level 1.`);
+            const defaultOption = document.querySelector('.level-option[data-level="1"]');
+            if (defaultOption) defaultOption.classList.add('selected');
+            setScriptGlobals({ scriptSelectedLevel: 1 }); // Use module-scoped setScriptGlobals
+            updateGameManagerSelectedLevel(1);
+        }
+    }
+
+    function coreStartGame() {
+        console.log("[core.js] coreStartGame called.");
+        updateTimerTimeoutThreshold(); 
+        
+        const levelSelectionDiv = document.getElementById('level-selection');
+        const wordCountSelectionDiv = document.getElementById('word-count-selection');
+        const gameInterfaceDiv = document.getElementById('game-interface');
+
+        if (levelSelectionDiv) levelSelectionDiv.style.display = 'none';
+        if (wordCountSelectionDiv) wordCountSelectionDiv.style.display = 'none';
+        if (gameInterfaceDiv) gameInterfaceDiv.style.display = 'block';
+
+        const currentGlobals = getScriptGlobals(); // Use module-scoped getScriptGlobals
+        console.log("[core.js] Starting game with words from scriptGlobals:", currentGlobals.allWords.length);
+        startGameInManager(currentGlobals.allWords, currentGlobals.allDescriptions, currentGlobals.allExampleSentences);
+    }
+
+    console.log("[core.js] setupApplication completed.");
+}
+
+// == DOMContentLoaded listener to start the application ==
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("%%%%%%%%%%%%%%%% CORE.JS DOMCONTENTLOADED FIRED %%%%%%%%%%%%%%%%");
+    initializeTimerManager(); // Initialize timer manager first as it depends on DOM elements
+    setupApplication(); // Call the main application setup logic
+}); 

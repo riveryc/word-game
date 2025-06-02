@@ -260,14 +260,19 @@ function checkAnswerInternal() {
 
 
 export function initializeGamePlayInterface(callbacks) {
-    console.log("[gamePlayInterface.initialize] Initializing with callbacks.");
-    processAnswerFn = callbacks.processAnswerFn;
-    requestNextWordFn = callbacks.requestNextWordFn;
-    getTimerContextFn = callbacks.getTimerContextFn;
-    stopWordTimerFn = callbacks.stopWordTimerFn;
-    startWordTimerFn = callbacks.startWordTimerFn;
-    repeatWordFn = callbacks.repeatWordFn;
-    // getGameManagerCurrentWordFn is not used by current functions in this module
+    console.log("[gamePlayInterface.initialize] Initializing with callbacks:", callbacks);
+    processAnswerFn = callbacks.processAnswer;
+    requestNextWordFn = callbacks.requestNextWordOrEndGameDisplay;
+    getTimerContextFn = callbacks.getTimerEvaluationContext;
+    stopWordTimerFn = callbacks.stopWordTimer;
+    startWordTimerFn = callbacks.startWordTimer;
+    
+    if (callbacks.audioManagerInstance && typeof callbacks.audioManagerInstance.repeatCurrentWord === 'function') {
+        repeatWordFn = () => callbacks.audioManagerInstance.repeatCurrentWord();
+    } else {
+        console.warn("[gamePlayInterface.initialize] audioManagerInstance or repeatCurrentWord not provided correctly.");
+        repeatWordFn = () => console.log("Repeat word function not set up.");
+    }
 
     gameInterfaceDiv = document.getElementById('game-interface');
     wordDisplayDiv = document.getElementById('word-display');

@@ -201,4 +201,9 @@ export function resetFilters() {
     }
     
     applyFiltersInternal();
+}
+
+// Expose resetFilters to the global scope for HTML onclick
+if (typeof window !== 'undefined') {
+    window.resetFiltersFromManager = resetFilters;
 } 
