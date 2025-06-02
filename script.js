@@ -997,7 +997,9 @@ function handleInlineKeydown(event) {
     } else if (event.key === ' ' || event.key === 'Spacebar') {
         // Space bar to repeat the word
         event.preventDefault(); // Prevent space from being typed in input
-        repeatWord();
+        if (typeof window.repeatWord === 'function' && currentWord) {
+            window.repeatWord(currentWord); // Pass currentWord
+        }
     } else if (event.key === 'Backspace' && !input.value && !waitingForContinue) {
         // Move to previous input field if current is empty and backspace is pressed
         const allInputs = document.querySelectorAll('.inline-input');

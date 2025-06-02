@@ -328,16 +328,9 @@ async function speakWord(word) {
 }
 
 // Function to repeat the current word
-function repeatWord() {
-    if (currentWord) {
-        speakWord(currentWord);
-
-        // Auto-focus after speaking
-        setTimeout(() => {
-            if (typeof focusAppropriateInput === 'function') {
-                focusAppropriateInput();
-            }
-        }, 100); // Small delay to ensure speech starts first
+function repeatWord(wordToRepeat) {
+    if (wordToRepeat && typeof speakWord === 'function') {
+        speakWord(wordToRepeat);
     }
 }
 
