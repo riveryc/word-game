@@ -1,7 +1,7 @@
 // CSV parsing functionality
 
 import { validateCSVData, validateWordData } from '../utils/validation.js';
-import { ERROR_MESSAGES } from '../config.js';
+import { ERROR_MESSAGES } from '../app/config.js';
 
 /**
  * Parse CSV text into word data array

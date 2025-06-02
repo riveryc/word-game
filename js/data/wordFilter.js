@@ -1,6 +1,6 @@
 // Word filtering functionality
 
-import { ELEMENTS, CSS_CLASSES } from '../config.js';
+import { ELEMENTS, CSS_CLASSES } from '../app/config.js';
 import { getElementById, showElement, hideElement, setHTML, addClass, removeClass } from '../utils/helpers.js';
 import { validateDateRange } from '../utils/validation.js';
 import { getUniqueColumnValues } from './csvParser.js';

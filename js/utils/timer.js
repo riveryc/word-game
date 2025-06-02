@@ -1,6 +1,6 @@
 // Timer utility for game timing functionality
 
-import { GAME_CONFIG, CSS_CLASSES, ELEMENTS } from '../config.js';
+import { GAME_CONFIG, CSS_CLASSES, ELEMENTS } from '../app/config.js';
 import { getElementById, setText, addClass, removeClass, formatTime } from './helpers.js';
 
 /**

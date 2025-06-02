@@ -1,6 +1,6 @@
 // Google Sheets integration
 
-import { API, ERROR_MESSAGES } from '../config.js';
+import { API, ERROR_MESSAGES } from '../app/config.js';
 import { extractGoogleSheetsId } from '../utils/helpers.js';
 import { parseCSV } from './csvParser.js';
 

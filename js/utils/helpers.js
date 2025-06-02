@@ -1,6 +1,6 @@
 // General helper functions
 
-import { REGEX } from '../config.js';
+import { REGEX } from '../app/config.js';
 
 /**
  * Get element by ID with error checking

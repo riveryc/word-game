@@ -1,6 +1,6 @@
 // Keyboard event handling utilities
 
-import { KEYS } from '../config.js';
+import { KEYS } from '../app/config.js';
 
 /**
  * Keyboard manager class for handling keyboard events

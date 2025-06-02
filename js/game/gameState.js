@@ -1,6 +1,6 @@
 // Game state management
 
-import { GAME_CONFIG, RESULT_TYPES, TTS_METHODS } from '../config.js';
+import { GAME_CONFIG, RESULT_TYPES, TTS_METHODS } from '../app/config.js';
 import { shuffleArray } from '../utils/helpers.js';
 
 /**

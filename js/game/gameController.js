@@ -1,6 +1,6 @@
 // Main game flow control
 
-import { RESULT_TYPES, KEYS } from '../config.js';
+import { RESULT_TYPES, KEYS } from '../app/config.js';
 import { gameState } from './gameState.js';
 import { wordGenerator } from './wordGenerator.js';
 import { gameTimer } from '../utils/timer.js';

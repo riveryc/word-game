@@ -1,6 +1,6 @@
 // Input validation utilities
 
-import { GAME_CONFIG, ERROR_MESSAGES } from '../config.js';
+import { GAME_CONFIG, ERROR_MESSAGES } from '../app/config.js';
 import { isValidGoogleSheetsUrl } from './helpers.js';
 
 /**

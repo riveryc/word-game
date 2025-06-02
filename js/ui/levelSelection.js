@@ -1,6 +1,6 @@
 // Level selection interface
 
-import { GAME_CONFIG, ELEMENTS, CSS_CLASSES, TTS_METHODS } from '../config.js';
+import { GAME_CONFIG, ELEMENTS, CSS_CLASSES, TTS_METHODS } from '../app/config.js';
 import { getElementById, addClass, removeClass, setValue, getValue } from '../utils/helpers.js';
 import { validateTimeoutInput, validateWordCountInput } from '../utils/validation.js';
 

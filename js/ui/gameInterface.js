@@ -1,6 +1,6 @@
 // Game playing interface
 
-import { ELEMENTS, CSS_CLASSES, KEYS } from '../config.js';
+import { ELEMENTS, CSS_CLASSES, KEYS } from '../app/config.js';
 import { getElementById, showElement, hideElement, setText, setHTML, addClass, removeClass, focusElement } from '../utils/helpers.js';
 import { keyboardManager, KeyboardShortcuts } from '../utils/keyboard.js';
 

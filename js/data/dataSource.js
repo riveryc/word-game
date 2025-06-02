@@ -1,6 +1,6 @@
 // Data source selection and loading management
 
-import { DATA_SOURCES, ELEMENTS, CSS_CLASSES, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../config.js';
+import { DATA_SOURCES, ELEMENTS, CSS_CLASSES, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../app/config.js';
 import { getElementById, showElement, hideElement, addClass, removeClass, setValue, getValue } from '../utils/helpers.js';
 import { validateGoogleSheetsUrl, validateFileInput } from '../utils/validation.js';
 import { parseCSV } from './csvParser.js';

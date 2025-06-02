@@ -1,6 +1,6 @@
 // Word puzzle generation
 
-import { GAME_CONFIG, CSS_CLASSES } from '../config.js';
+import { GAME_CONFIG, CSS_CLASSES } from '../app/config.js';
 import { getRandomInt } from '../utils/helpers.js';
 
 /**

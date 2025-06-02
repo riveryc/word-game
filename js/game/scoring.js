@@ -1,6 +1,6 @@
 // Scoring and results tracking
 
-import { RESULT_TYPES, GAME_CONFIG } from '../config.js';
+import { RESULT_TYPES, GAME_CONFIG } from '../app/config.js';
 
 /**
  * Scoring manager class

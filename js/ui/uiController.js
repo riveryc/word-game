@@ -1,6 +1,6 @@
 // Main UI coordination
 
-import { ELEMENTS, CSS_CLASSES, SUCCESS_MESSAGES } from '../config.js';
+import { ELEMENTS, CSS_CLASSES, SUCCESS_MESSAGES } from '../app/config.js';
 import { getElementById, showElement, hideElement, setText, setHTML, addClass, removeClass } from '../utils/helpers.js';
 
 /**

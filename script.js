@@ -27,6 +27,7 @@ import {
 import { updateBackButtonVisibility, showExitConfirmation, selectConfirmationOption, confirmExitSelection as confirmExitSelectionDialog, exitToMainMenu as exitToMainMenuDialog, initializeConfirmationDialogEventListeners } from './js/ui/confirmationDialog.js';
 import { showFinalResults as showFinalResultsInterface, addRetryKeyboardShortcut, removeRetryKeyboardShortcut, handleRetryKeydown } from './js/ui/resultsInterface.js';
 import audioManager from './js/audio/audioManager.js'; // Import the audio manager instance
+import { initializeGamePlayInterface, displayWordChallenge } from './js/ui/gamePlayInterface.js';
 
 // Game state variables - most are now in gameManager.js
 let allWords = [];
@@ -90,9 +91,8 @@ function showNextWordUI(data) {
 }
 
 function showFinalResultsUI(wordResults, wordRetryDataFromManager, correctAnswers, totalWordsInGame, isRetryModeFlag, gameWordObjectsForResults) {
-    console.log("[showFinalResultsUI] Called. Resetting isProcessing and waitingForContinue.");
-    isProcessing = false;
-    waitingForContinue = false;
+    console.log("[showFinalResultsUI] Called.");
+    // isProcessing and waitingForContinue are managed by gamePlayInterface if active.
 
     const resultsDataForInterface = wordResults.map((res, index) => {
         const gameWordObject = gameWordObjectsForResults && gameWordObjectsForResults[index] ? gameWordObjectsForResults[index] :
@@ -394,14 +394,14 @@ function handleGlobalKeydown(event) {
 
         } else if (event.key === 'Enter') {
             event.preventDefault();
-            confirmExitSelectionDialog(); // Uses aliased import
-            if (document.getElementById('data-source-selection').style.display === 'block') { // Check if exit actually happened
-                removeRetryKeyboardShortcut(); // Call it here after exit is confirmed and UI updated
+            confirmExitSelectionDialog();
+            if (document.getElementById('data-source-selection').style.display === 'block') { 
+                removeRetryKeyboardShortcut(); 
             }
         } else if (event.key === 'Escape') {
             event.preventDefault();
-            exitToMainMenuDialog(false); // Uses aliased import, false means not a forced/confirmed exit from dialog itself
-            removeRetryKeyboardShortcut(); // Call it here as well
+            exitToMainMenuDialog(false); 
+            removeRetryKeyboardShortcut();
         }
     } else {
         if (event.key === 'Escape') {
@@ -472,13 +472,24 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeTimerManager(); // Initialize timer systems
 
     initializeGameManager({ 
-        showNextWordUI: showNextWordUI,
+        showNextWordUI: displayWordChallenge,
         showFinalResultsUI: showFinalResultsUI, 
         updateBackButtonVisibility: updateBackButtonVisibility, 
         speakWord: speakWord // Pass the updated speakWord function
     }, { 
         selectedLevel: scriptSelectedLevel,
         selectedWordCount: scriptSelectedWordCount
+    });
+
+    // Initialize the new game play interface module
+    initializeGamePlayInterface({
+        processAnswerFn: processAnswerInManager, 
+        requestNextWordFn: requestNextWordOrEndGameDisplay,
+        getTimerContextFn: getTimerEvaluationContext,
+        stopWordTimerFn: stopWordTimer,
+        startWordTimerFn: startWordTimer,
+        repeatWordFn: () => audioManager.repeatCurrentWord(), // Pass a function that calls the method
+        getGameManagerCurrentWordFn: getGameManagerCurrentWord // Kept for now, may be removed if repeatWordFn is enough
     });
 
     setupDataSourceSelectionHandler();
