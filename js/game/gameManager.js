@@ -63,58 +63,75 @@ export function createPartialWord(word) {
     let wordStructure = [];
     let missingLettersOutput = [];
     const numTotalLetters = word.length;
-    let fractionToShow;
 
-    // currentSelectedLevel is 1 (Easy), 2 (Medium), 3 (Nightmare)
-    // As defined in index.html data-level attributes and descriptions:
-    // Level 1 (Easy): 50% missing letters => show 50%
-    // Level 2 (Medium): 75% missing letters => show 25%
-    // Level 3 (Nightmare): 100% missing letters => show 0%
+    const alphabeticCharPositions = [];
+    const originalWordChars = word.split('');
 
-    switch (currentSelectedLevel) {
-        case 1: // Easy
-            fractionToShow = 0.50;
-            break;
-        case 2: // Medium
-            fractionToShow = 0.25;
-            break;
-        case 3: // Nightmare
-            fractionToShow = 0.00;
-            break;
-        default: // Fallback, treat as Easy
-            console.warn(`Unknown level ${currentSelectedLevel}, defaulting to Easy (50% shown).`);
-            fractionToShow = 0.50;
-            break;
+    originalWordChars.forEach((char, index) => {
+        if (/[a-zA-Z]/.test(char)) {
+            alphabeticCharPositions.push(index);
+        }
+    });
+
+    const numAlphabeticChars = alphabeticCharPositions.length;
+    let numToHide = 0;
+
+    if (numAlphabeticChars === 0) { // No alphabetic characters to hide
+        // All characters will be visible by default in the loop below
+    } else {
+        switch (currentSelectedLevel) {
+            case 1: // Easy: hide 50%, at least 1
+                numToHide = Math.round(numAlphabeticChars * 0.50);
+                if (numToHide === 0 && numAlphabeticChars > 0) { // Ensure at least 1 is hidden if possible
+                    numToHide = 1;
+                }
+                break;
+            case 2: // Medium: hide 75%, at least 2 (or all if only 1 alphabetic char)
+                numToHide = Math.round(numAlphabeticChars * 0.75);
+                if (numAlphabeticChars === 1) {
+                    numToHide = 1;
+                } else if (numAlphabeticChars > 1 && numToHide < 2) { // Ensure at least 2 are hidden if possible and more than 1 available
+                    numToHide = Math.min(2, numAlphabeticChars); // Hide 2, or all if only 2 are available
+                }
+                break;
+            case 3: // Nightmare: hide 100% of alphabetic chars
+                numToHide = numAlphabeticChars;
+                break;
+            default:
+                console.warn(`Unknown level ${currentSelectedLevel}, defaulting to Easy logic.`);
+                numToHide = Math.round(numAlphabeticChars * 0.50);
+                if (numToHide === 0 && numAlphabeticChars > 0) {
+                    numToHide = 1;
+                }
+                break;
+        }
     }
+    
+    // Ensure numToHide doesn't exceed available alphabetic characters
+    numToHide = Math.min(numToHide, numAlphabeticChars);
 
-    let lettersToShowCount = 0;
-    if (fractionToShow > 0) { // Only calculate if we are supposed to show some letters
-        lettersToShowCount = Math.ceil(numTotalLetters * fractionToShow);
-    }
-    // If fractionToShow is 0 (Nightmare), lettersToShowCount remains 0.
-
-    // For Easy and Medium levels (where fractionToShow > 0):
-    // If the word has letters, but calculation resulted in 0 letters to show (e.g. for short words),
-    // ensure at least one letter is shown.
-    if (fractionToShow > 0 && numTotalLetters > 0 && lettersToShowCount === 0) {
-        lettersToShowCount = 1;
-    }
-
-    let visiblePositions = [];
-    if (lettersToShowCount > 0) { // If 0, this block is skipped
-        const allPositions = Array.from({ length: numTotalLetters }, (_, i) => i);
-        const shuffledPositions = shuffleArray(allPositions); 
-        visiblePositions = shuffledPositions.slice(0, lettersToShowCount).sort((a, b) => a - b);
+    let actualHiddenPositions = new Set();
+    if (numToHide > 0) {
+        const shuffledAlphabeticPositions = shuffleArray([...alphabeticCharPositions]);
+        for (let i = 0; i < numToHide; i++) {
+            actualHiddenPositions.add(shuffledAlphabeticPositions[i]);
+        }
     }
 
     for (let i = 0; i < numTotalLetters; i++) {
-        if (visiblePositions.includes(i)) {
-            wordStructure.push({ type: 'visible', letter: word[i] });
+        const char = originalWordChars[i];
+        if (!/[a-zA-Z]/.test(char)) { // Symbol or non-alphabetic
+            wordStructure.push({ type: 'visible', letter: char });
         } else {
-            wordStructure.push({ type: 'input', letter: word[i], index: missingLettersOutput.length });
-            missingLettersOutput.push(word[i]);
+            if (actualHiddenPositions.has(i)) {
+                wordStructure.push({ type: 'input', letter: char, index: missingLettersOutput.length });
+                missingLettersOutput.push(char);
+            } else {
+                wordStructure.push({ type: 'visible', letter: char });
+            }
         }
     }
+
     return { wordStructure, missingLettersOutput: missingLettersOutput.join('') };
 }
 
