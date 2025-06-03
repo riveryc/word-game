@@ -4,7 +4,6 @@ import { initializeTimerManager, updateTimeoutThreshold as updateTimerTimeoutThr
 import { initializeGameManager, setGameConfig as setGameManagerConfigImport, updateSelectedLevel as updateGameManagerSelectedLevel, startGame as startGameInManager, getCurrentSelectedLevel as getGameManagerCurrentLevel, processAnswer, requestNextWordOrEndGameDisplay, getCurrentWord as getGameManagerCurrentWordFromManager } from './game/gameManager.js';
 import { updateBackButtonVisibility as updateConfirmationDialogBackButtonVisibility, initializeConfirmationDialogEventListeners } from './ui/confirmationDialog.js';
 import { showFinalResults as showFinalResultsInterfaceFromResults } from './ui/resultsInterface.js';
-import audioManager from './audio/audioManager.js';
 import { initializeGamePlayInterface, displayWordChallenge as displayWordChallengeFromGamePlay } from './ui/gamePlayInterface.js';
 import { initializeGameSetupInterface, displayGameSetupScreen as displayGameSetupScreenFromSetup } from './ui/gameSetupInterface.js';
 import { initializeMainAppEventListeners } from './ui/globalEventListeners.js';
@@ -107,12 +106,10 @@ function setupApplication() {
 
     function coreSpeakWord(word) {
         console.log("[core.js coreSpeakWord] Called for word:", word);
-        if (audioManager && typeof audioManager.playWord === 'function') {
-            audioManager.playWord(word).catch(error => {
-                console.warn("[core.js] Audio manager playWord failed:", error, "Word:", word);
-            });
+        if (typeof window.playWordAudio === 'function') {
+            window.playWordAudio(word);
         } else {
-            console.warn("[core.js] coreSpeakWord called, but audioManager or playWord function is not available. Word:", word);
+            console.warn("[core.js] coreSpeakWord: window.playWordAudio is not available. Word:", word);
         }
     }
 
@@ -194,8 +191,7 @@ function setupApplication() {
         stopWordTimer: stopWordTimer,
         startWordTimer: startWordTimer,
         getCurrentWord: getGameManagerCurrentWordFromManager, 
-        speakWord: coreSpeakWord, 
-        audioManagerInstance: audioManager
+        speakWord: coreSpeakWord 
     });
 
     setupDataSourceSelectionHandler();

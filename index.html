@@ -145,19 +145,29 @@
                 </div>
             </div>
 
-            <!-- 4. Audio Method -->
+            <!-- 4. Audio Method (Revised) -->
             <div class="tts-selection">
-                <div class="tts-title">🔊 Audio Method:</div>
-                <div class="tts-options">
-                    <div class="tts-option" data-method="dictionary">
-                        <div class="tts-name">📖 Dictionary API</div>
-                        <div class="tts-description">Professional pronunciation (requires internet)</div>
+                <div class="tts-title">🔊 Audio Source:</div>
+                <fieldset id="audioSourceSelection" class="tts-options-fieldset" style="border: none; padding: 0; margin: 0;">
+                    <!-- Using a fieldset for semantic grouping of radio buttons -->
+                    <!-- Style override 'border: none;' is a suggestion; adapt styling as needed -->
+                    <div class="tts-options"> <!-- Reusing existing class for potential styling -->
+                        <div class="tts-option" data-method="online"> <!-- Re-using tts-option for styling, data-method for JS if needed -->
+                            <input type="radio" id="audioOnline" name="audioSource" value="online" checked class="tts-radio-input">
+                            <label for="audioOnline" class="tts-label">
+                                <div class="tts-name">☁️ Online</div>
+                                <div class="tts-description">Google/Dictionary (caches on server, internet required for first play of a word)</div>
+                            </label>
+                        </div>
+                        <div class="tts-option" data-method="offline">
+                            <input type="radio" id="audioOffline" name="audioSource" value="offline" class="tts-radio-input">
+                            <label for="audioOffline" class="tts-label">
+                                <div class="tts-name">💻 Offline</div>
+                                <div class="tts-description">Browser audio (always available)</div>
+                            </label>
+                        </div>
                     </div>
-                    <div class="tts-option" data-method="browser">
-                        <div class="tts-name">💻 Browser Voice</div>
-                        <div class="tts-description">Built-in text-to-speech (offline)</div>
-                    </div>
-                </div>
+                </fieldset>
             </div>
 
             <!-- 5. Word Filters -->
@@ -186,6 +196,15 @@
 
                     <div class="filter-actions">
                         <button class="filter-button" onclick="window.resetFiltersFromManager()">🔄 Reset Filters</button>
+                        <button class="filter-button" id="cache-filtered-words-button">💾 Cache These</button>
+                    </div>
+                    <div id="cache-progress-container" style="margin-top: 10px; display: none;">
+                        <div id="cache-progress-text" style="margin-bottom: 5px;">Caching words... 0/0 (0%)</div>
+                        <div id="cache-progress-bar-outer" style="width: 100%; background-color: #e0e0e0; border-radius: 4px; padding: 2px;">
+                            <div id="cache-progress-bar-inner" style="width: 0%; height: 20px; background-color: #4CAF50; border-radius: 2px; text-align: center; color: white; line-height: 20px;">
+                                0%
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -256,5 +275,12 @@
     </a>
 
     <script src="js/core.js" type="module"></script>
+    <!-- <script src="js/data/wordsManager.js"></script> -->
+    <script src="js/data/csvParser.js" type="module"></script>
+    <script src="js/data/googleSheets.js" type="module"></script>
+    <script src="js/audio/audioManager.js" type="module"></script>
+    <script src="js/audio/onlineAudioManager.js" defer></script>
+    <script src="js/game/gameManager.js" type="module"></script>
+    <!-- <script src="js/game/levelManager.js"></script> -->
 </body>
 </html>

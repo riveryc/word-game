@@ -12,7 +12,7 @@ let getTimerContextFn = null;
 let stopWordTimerFn = null;
 let startWordTimerFn = null;
 let repeatWordFn = null;
-// let getGameManagerCurrentWordFn = null; // Not directly used by moved functions, spacebar uses repeatWordFn
+let getGameManagerCurrentWordFn = null; // Let's use this to store the callback
 
 // DOM Elements (cache them if frequently accessed)
 let gameInterfaceDiv = null;
@@ -266,12 +266,20 @@ export function initializeGamePlayInterface(callbacks) {
     getTimerContextFn = callbacks.getTimerEvaluationContext;
     stopWordTimerFn = callbacks.stopWordTimer;
     startWordTimerFn = callbacks.startWordTimer;
+    getGameManagerCurrentWordFn = callbacks.getCurrentWord; // Store this callback
     
-    if (callbacks.audioManagerInstance && typeof callbacks.audioManagerInstance.repeatCurrentWord === 'function') {
-        repeatWordFn = () => callbacks.audioManagerInstance.repeatCurrentWord();
+    if (typeof window.playWordAudio === 'function' && typeof getGameManagerCurrentWordFn === 'function') {
+        repeatWordFn = () => {
+            const currentWordObj = getGameManagerCurrentWordFn();
+            if (currentWordObj && currentWordObj.word) {
+                window.playWordAudio(currentWordObj.word);
+            } else {
+                console.warn("[gamePlayInterface] repeatWordFn: Could not get current word to play.");
+            }
+        };
     } else {
-        console.warn("[gamePlayInterface.initialize] audioManagerInstance or repeatCurrentWord not provided correctly.");
-        repeatWordFn = () => console.log("Repeat word function not set up.");
+        console.warn("[gamePlayInterface.initialize] window.playWordAudio or getCurrentWord callback is not available. Repeat function not set up.");
+        repeatWordFn = () => console.log("Repeat word function not properly set up.");
     }
 
     gameInterfaceDiv = document.getElementById('game-interface');

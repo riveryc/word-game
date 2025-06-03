@@ -1,11 +1,11 @@
 // js/ui/gameSetupInterface.js
-import audioManager from '../audio/audioManager.js'; // Import the audio manager instance
+// import audioManager from '../audio/audioManager.js'; // REMOVED
 
 let wordCountInputElement;
 let wordCountSelectionDivElement;
 let levelSelectionDivElement;
 let contentDivElement;
-let ttsOptionElements; // Cache for TTS option elements
+// let ttsOptionElements; // REMOVED - Cache for TTS option elements
 
 // Callbacks to be set during initialization
 let onWordCountChangeCallback; // Expected to be setGameManagerConfig({ selectedWordCount: ... })
@@ -67,29 +67,6 @@ function _updateWordCountDisplayAndListener() {
     }
 }
 
-function _updateTTSSelectionVisuals() {
-    if (!ttsOptionElements) return;
-    const currentMethod = audioManager.getMethod();
-    ttsOptionElements.forEach(option => {
-        if (option.dataset.method === currentMethod) {
-            option.classList.add('selected');
-        } else {
-            option.classList.remove('selected');
-        }
-    });
-}
-
-function _setupTTSSelectionListeners() {
-    if (!ttsOptionElements) return;
-    ttsOptionElements.forEach(option => {
-        option.addEventListener('click', function() {
-            const selectedMethod = this.dataset.method;
-            audioManager.setMethod(selectedMethod);
-            _updateTTSSelectionVisuals();
-        });
-    });
-}
-
 export function initializeGameSetupInterface(dependencies) {
     console.log("%%%%%%%%%%%%%%%% GAMESETUPINTERFACE INITIALIZE STARTS %%%%%%%%%%%%%%%%");
     console.log("[GameSetupInterface] Initializing...");
@@ -106,8 +83,8 @@ export function initializeGameSetupInterface(dependencies) {
     contentDivElement = document.getElementById('content');
     console.log("[GameSetupInterface] contentDivElement found:", contentDivElement);
 
-    ttsOptionElements = document.querySelectorAll('.tts-selection .tts-option'); // Cache TTS options
-    console.log("[GameSetupInterface] ttsOptionElements found:", ttsOptionElements);
+    // ttsOptionElements = document.querySelectorAll('.tts-selection .tts-option'); // REMOVED
+    // console.log("[GameSetupInterface] ttsOptionElements found:", ttsOptionElements); // REMOVED
 
     if (!wordCountInputElement) {
         console.error("[GameSetupInterface] Failed to cache 'word-count-input'. Ensure it exists in index.html.");
@@ -121,9 +98,9 @@ export function initializeGameSetupInterface(dependencies) {
     if (!contentDivElement) {
         console.error("[GameSetupInterface] Failed to cache 'content'. Ensure it exists in index.html.");
     }
-    if (!ttsOptionElements || ttsOptionElements.length === 0) {
-        console.error("[GameSetupInterface] Failed to cache TTS option elements. Ensure '.tts-selection .tts-option' exists in index.html.");
-    }
+    // if (!ttsOptionElements || ttsOptionElements.length === 0) { // REMOVED
+    //    console.error("[GameSetupInterface] Failed to cache TTS option elements. Ensure '.tts-selection .tts-option' exists in index.html.");
+    // }
 
     // Setup dependencies
     onWordCountChangeCallback = dependencies.onWordCountChange; 
@@ -139,7 +116,7 @@ export function initializeGameSetupInterface(dependencies) {
     if (typeof updateBackButtonVisibilityCallback !== 'function') {
         console.warn('[GameSetupInterface] updateBackButtonVisibilityCallback is not a function.');
     }
-    _setupTTSSelectionListeners(); // Setup listeners for TTS options
+    // _setupTTSSelectionListeners(); // REMOVED - Setup listeners for TTS options
     console.log("[GameSetupInterface] Initialized.");
 }
 
@@ -161,7 +138,7 @@ export function displayGameSetupScreen(callbacks) {
         levelSelectionDivElement.style.display = 'block';
     }
 
-    _updateTTSSelectionVisuals(); // Update visual state of TTS options
+    // _updateTTSSelectionVisuals(); // REMOVED - Update visual state of TTS options
 
     // Call core.js callbacks to set up listeners for level selection and start game button
     if (callbacks && typeof callbacks.coreSetupLevelSelectListenersCallback === 'function') {

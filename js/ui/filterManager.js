@@ -17,6 +17,14 @@ let wordFiltersContainer = null;
 let totalWordsCountSpan = null; // For "Total available: X words" in word-count-selection
 let availableWordsDisplayDiv = null; // For the new top-level display
 
+// Cache button and progress bar elements
+let cacheFilteredWordsButton = null;
+let cacheProgressContainer = null;
+let cacheProgressText = null;
+let cacheProgressBarInner = null;
+
+let currentFilteredWordsForCaching = []; // Store currently filtered words for caching process
+
 export function initializeFilterManager(callbacks) {
     onFiltersAppliedCallback = callbacks.onFiltersApplied;
     console.log("[FilterManager] Initialized. onFiltersAppliedCallback:", onFiltersAppliedCallback);
@@ -28,10 +36,17 @@ export function initializeFilterManager(callbacks) {
     sourceFiltersContainer = document.getElementById('source-filters');
     wordFiltersContainer = document.getElementById('word-filters');
     totalWordsCountSpan = document.getElementById('total-words-count');
-    availableWordsDisplayDiv = document.getElementById('available-words-display'); // Cache new element
+    availableWordsDisplayDiv = document.getElementById('available-words-display');
+
+    // Cache elements for the new feature
+    cacheFilteredWordsButton = document.getElementById('cache-filtered-words-button');
+    cacheProgressContainer = document.getElementById('cache-progress-container');
+    cacheProgressText = document.getElementById('cache-progress-text');
+    cacheProgressBarInner = document.getElementById('cache-progress-bar-inner');
 
     // Initial setup of listeners if elements exist
     setupFilterListeners();
+    setupCacheButtonListener();
 }
 
 export function setBaseWordData(allWordDataFromScript) {
@@ -81,6 +96,8 @@ function applyFiltersInternal() {
         if (availableSources.length > 0 && selectedSources.length > 0 && wordData.source && !selectedSources.includes(wordData.source)) return false;
         return true;
     });
+
+    currentFilteredWordsForCaching = [...filteredWordData]; // Update the list for caching
 
     const newAllWords = filteredWordData.map(data => data.word);
     const newAllDescriptions = filteredWordData.map(data => data.description);
@@ -206,4 +223,60 @@ export function resetFilters() {
 // Expose resetFilters to the global scope for HTML onclick
 if (typeof window !== 'undefined') {
     window.resetFiltersFromManager = resetFilters;
+}
+
+function setupCacheButtonListener() {
+    if (cacheFilteredWordsButton) {
+        cacheFilteredWordsButton.addEventListener('click', handleCacheFilteredWords);
+    }
+}
+
+async function handleCacheFilteredWords() {
+    if (!window.ensureWordIsCached) {
+        console.error("ensureWordIsCached function is not available on window.");
+        alert("Caching feature is currently unavailable. Please try again later.");
+        return;
+    }
+
+    if (currentFilteredWordsForCaching.length === 0) {
+        alert("No words to cache. Please adjust your filters.");
+        return;
+    }
+
+    cacheFilteredWordsButton.disabled = true;
+    cacheProgressContainer.style.display = 'block';
+    let successfullyCachedCount = 0;
+    const totalWordsToCache = currentFilteredWordsForCaching.length;
+
+    for (let i = 0; i < totalWordsToCache; i++) {
+        const wordData = currentFilteredWordsForCaching[i];
+        const progressPercentage = Math.round(((i + 1) / totalWordsToCache) * 100);
+        cacheProgressText.textContent = `Caching words... ${i + 1}/${totalWordsToCache} (${progressPercentage}%) - Caching: ${wordData.word}`;
+        cacheProgressBarInner.style.width = `${progressPercentage}%`;
+        cacheProgressBarInner.textContent = `${progressPercentage}%`;
+
+        try {
+            // Stagger API calls slightly to avoid overwhelming the server/network or hitting rate limits.
+            // A small delay, e.g., 100-200ms between calls.
+            await new Promise(resolve => setTimeout(resolve, 150)); 
+            const success = await window.ensureWordIsCached(wordData.word);
+            if (success) {
+                successfullyCachedCount++;
+            }
+        } catch (error) {
+            console.error(`Error caching word '${wordData.word}':`, error);
+            // Optionally, you could retry or mark as failed.
+        }
+    }
+
+    cacheProgressText.textContent = `Caching complete. Successfully cached ${successfullyCachedCount} out of ${totalWordsToCache} words.`;
+    // Keep the progress bar full or update text
+    cacheProgressBarInner.style.width = `100%`;
+    cacheProgressBarInner.textContent = `Done`;
+    cacheFilteredWordsButton.disabled = false;
+
+    // Optionally hide progress bar after a delay
+    // setTimeout(() => {
+    //    cacheProgressContainer.style.display = 'none';
+    // }, 5000);
 } 

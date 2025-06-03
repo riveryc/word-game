@@ -363,5 +363,5 @@ export function getGameStatusForRetry() {
 }
 
 export function getCurrentWord() {
-    return currentWord;
+    return { word: currentWord };
 } 

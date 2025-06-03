@@ -16,7 +16,6 @@ export class GameController {
         this.onWordCompleteCallback = null;
         this.onGameCompleteCallback = null;
         this.onProgressUpdateCallback = null;
-        this.audioManager = null;
         this.uiController = null;
     }
 
@@ -25,7 +24,6 @@ export class GameController {
      * @param {Object} dependencies - Required dependencies
      */
     initialize(dependencies = {}) {
-        this.audioManager = dependencies.audioManager;
         this.uiController = dependencies.uiController;
         this.setupKeyboardHandlers();
         this.isInitialized = true;
@@ -44,8 +42,11 @@ export class GameController {
 
         // Space key for audio repeat
         keyboardManager.registerKeyHandler(KEYS.SPACE, KeyboardShortcuts.spaceKey(() => {
-            if (gameState.isWordActive && this.audioManager) {
-                this.audioManager.playCurrentWord();
+            if (gameState.isWordActive) {
+                const currentWord = gameState.getCurrentWord();
+                if (currentWord && currentWord.word) {
+                    window.playWordAudio(currentWord.word);
+                }
             }
         }));
     }
@@ -108,8 +109,8 @@ export class GameController {
         );
 
         // Play audio
-        if (this.audioManager) {
-            await this.audioManager.playWord(currentWord.word);
+        if (currentWord && currentWord.word) {
+            window.playWordAudio(currentWord.word);
         }
 
         // Focus first input
@@ -283,8 +284,8 @@ export class GameController {
      */
     async repeatWord() {
         const currentWord = gameState.getCurrentWord();
-        if (currentWord && this.audioManager) {
-            await this.audioManager.playWord(currentWord.word);
+        if (currentWord && currentWord.word) {
+            window.playWordAudio(currentWord.word);
         }
     }
 
