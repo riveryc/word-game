@@ -1,11 +1,21 @@
 {
+  "name": "super_word",
+  "version": "1.0.0",
+  "description": "A word game with audio features",
+  "main": "server.py", 
   "scripts": {
+    "start": "python server.py", 
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "coverage": "vitest run --coverage" 
+    "coverage": "vitest run --coverage",
+    "docker:build": "docker build -t word-game-app .",
+    "docker:run": "docker run -p 5000:5000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm word-game-app",
+    "docker:start": "npm run docker:build && npm run docker:run"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",
     "vitest": "^3.2.0"
-  }
+  },
+  "author": "River Yang (river@ryc.one)",
+  "license": "ISC"
 }

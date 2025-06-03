@@ -1,0 +1,34 @@
+# Git specific files
+.git
+.gitignore
+
+# Node.js specific files (if they were part of the build context for Python)
+node_modules
+
+# Python specific cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Testing specific files/folders
+.pytest_cache/
+# tests/  # You might want to include tests if you run them in a later Docker build stage, but not for a lean production image.
+
+# OS specific files
+.DS_Store
+
+# Docker specific files
+Dockerfile
+.dockerignore
+
+# Audio cache - usually not part of the deployable image unless pre-cached audio is desired
+audio_cache/*
+
+# Vitest specific files
+vitest.config.js
+# coverage/ # If you generate coverage reports locally
+
+# Any local virtual environments
+.venv/
+virtualenv/
+env/ 
