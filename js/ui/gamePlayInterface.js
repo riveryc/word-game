@@ -4,6 +4,8 @@
 let lastFocusedInput = null;
 let waitingForContinue = false;
 let isProcessing = false;
+let isGamePlayActiveForFocus = false; // Flag for focus management
+let boundHandleDocumentClickForFocus = null; // For storing the bound event handler
 
 // References to functions from other modules, to be set during initialization
 let processAnswerFn = null;
@@ -21,11 +23,53 @@ let progressDiv = null;
 let wordDescriptionDiv = null;
 let feedbackDiv = null;
 
+// New function to handle document clicks for focus
+function handleDocumentClickForFocus(event) {
+    // Only run if focus management is active and the game interface is visible
+    if (!isGamePlayActiveForFocus || !gameInterfaceDiv || gameInterfaceDiv.style.display !== 'block') {
+        return;
+    }
+
+    const target = event.target;
+    const repeatButton = document.getElementById('repeat-button'); 
+
+    // Allow clicks on inputs or the repeat button (and its children, if any) without refocusing
+    if (target.classList.contains('inline-input') || (repeatButton && repeatButton.contains(target))) {
+        return;
+    }
+
+    // If the click is on any other element, refocus the last known input
+    console.log("[gamePlayInterface.js] Document click detected outside interactive elements, refocusing input.");
+    setTimeout(() => {
+        if (lastFocusedInput && document.body.contains(lastFocusedInput)) {
+            lastFocusedInput.focus();
+        } else {
+            const firstInput = wordDisplayDiv ? wordDisplayDiv.querySelector('.inline-input') : null;
+            if (firstInput) {
+                firstInput.focus();
+            }
+        }
+    }, 0);
+}
+
 // Function to display the word challenge (replaces showNextWordUI from script.js)
 function displayWordChallenge(data) {
     console.log("[gamePlayInterface.displayWordChallenge] Called. Resetting flags.");
     isProcessing = false;
     waitingForContinue = false;
+
+    // Activate focus management
+    if (!isGamePlayActiveForFocus) { 
+        if (!boundHandleDocumentClickForFocus) {
+            boundHandleDocumentClickForFocus = handleDocumentClickForFocus.bind(this); // `this` might not be ideal here if not a class method
+                                                                            // Let's make handleDocumentClickForFocus a standalone function if it doesn't need `this` context from a class
+                                                                            // Since it's not in a class, `this` is not relevant, so direct reference is fine.
+            boundHandleDocumentClickForFocus = handleDocumentClickForFocus; 
+        }
+        document.addEventListener('click', boundHandleDocumentClickForFocus, true); // Use capture phase
+        console.log("[gamePlayInterface.js] Focus lock event listener ADDED.");
+    }
+    isGamePlayActiveForFocus = true;
 
     if (!gameInterfaceDiv) gameInterfaceDiv = document.getElementById('game-interface');
     if (!wordDisplayDiv) wordDisplayDiv = document.getElementById('word-display');
@@ -258,30 +302,54 @@ function checkAnswerInternal() {
     isProcessing = false; 
 }
 
+// New function to deactivate focus lock
+export function deactivateGamePlayFocusLock() {
+    if (isGamePlayActiveForFocus && boundHandleDocumentClickForFocus) {
+        document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
+        console.log("[gamePlayInterface.js] Focus lock event listener REMOVED.");
+    }
+    isGamePlayActiveForFocus = false;
+}
 
 export function initializeGamePlayInterface(callbacks) {
-    console.log("[gamePlayInterface.initialize] Initializing with callbacks:", callbacks);
+    console.log("----------------------------------------------------------");
+    console.log("[gamePlayInterface.js] INITIALIZE CALLED with callbacks:", callbacks);
+    console.log("----------------------------------------------------------");
     processAnswerFn = callbacks.processAnswer;
     requestNextWordFn = callbacks.requestNextWordOrEndGameDisplay;
     getTimerContextFn = callbacks.getTimerEvaluationContext;
     stopWordTimerFn = callbacks.stopWordTimer;
     startWordTimerFn = callbacks.startWordTimer;
-    getGameManagerCurrentWordFn = callbacks.getCurrentWord; // Store this callback
+    getGameManagerCurrentWordFn = callbacks.getCurrentWord; 
     
     if (typeof window.playWordAudio === 'function' && typeof getGameManagerCurrentWordFn === 'function') {
         repeatWordFn = () => {
+            console.log("[gamePlayInterface.js] repeatWordFn triggered (via button or spacebar)."); 
             const currentWordObj = getGameManagerCurrentWordFn();
             if (currentWordObj && currentWordObj.word) {
                 window.playWordAudio(currentWordObj.word);
             } else {
-                console.warn("[gamePlayInterface] repeatWordFn: Could not get current word to play.");
+                console.warn("[gamePlayInterface.js] repeatWordFn: Could not get current word to play.");
             }
         };
     } else {
         console.warn("[gamePlayInterface.initialize] window.playWordAudio or getCurrentWord callback is not available. Repeat function not set up.");
-        repeatWordFn = () => console.log("Repeat word function not properly set up.");
+        repeatWordFn = () => console.log("[gamePlayInterface.js] Repeat word function not properly set up.");
     }
 
+    const htmlRepeatButton = document.getElementById('repeat-button');
+    if (htmlRepeatButton) {
+        if (repeatWordFn) {
+            htmlRepeatButton.addEventListener('click', repeatWordFn);
+            console.log("[gamePlayInterface.js] HTML repeat button listener added.");
+        } else {
+            console.error("[gamePlayInterface.js] repeatWordFn is not defined, cannot attach to HTML repeat button.");
+        }
+    } else {
+        console.error("[gamePlayInterface.js] HTML repeat button (id='repeat-button') not found.");
+    }
+
+    // Cache main divs if not already done, or ensure they are accessible
     gameInterfaceDiv = document.getElementById('game-interface');
     wordDisplayDiv = document.getElementById('word-display');
     progressDiv = document.getElementById('progress');

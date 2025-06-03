@@ -1,5 +1,4 @@
-import { confirmExitSelection as confirmExitSelectionDialog, exitToMainMenu as exitToMainMenuDialog, showExitConfirmation, updateBackButtonVisibility } from './confirmationDialog.js';
-import { removeRetryKeyboardShortcut } from './resultsInterface.js'; // Path might need adjustment depending on final structure
+import { showExitConfirmation, handleKeysWithinConfirmationDialog } from './confirmationDialog.js';
 
 // Global keydown (ESC for confirmation)
 export function handleGlobalKeydown(event) {
@@ -7,20 +6,11 @@ export function handleGlobalKeydown(event) {
     const isConfirmationVisible = overlay && overlay.style.display === 'flex';
 
     if (isConfirmationVisible) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            confirmExitSelectionDialog();
-            // Check if data source selection is visible to decide on removing shortcut
-            const dataSourceScreen = document.getElementById('data-source-selection');
-            if (dataSourceScreen && dataSourceScreen.style.display === 'block') { 
-                removeRetryKeyboardShortcut(); 
-            }
-        } else if (event.key === 'Escape') {
-            event.preventDefault();
-            exitToMainMenuDialog(false); 
-            removeRetryKeyboardShortcut();
-        }
+        // If dialog is visible, delegate to its specific handler
+        handleKeysWithinConfirmationDialog(event);
+        // The logic for removeRetryKeyboardShortcut on Enter/confirm is now inside confirmExitSelection in confirmationDialog.js
     } else {
+        // Dialog is NOT visible
         if (event.key === 'Escape') {
             const gameInterface = document.getElementById('game-interface');
             const levelSelectionScreen = document.getElementById('level-selection'); 
@@ -34,10 +24,12 @@ export function handleGlobalKeydown(event) {
                 showExitConfirmation(); 
             }
         }
+        // Add other global keydowns here if needed (e.g. F1 for help, etc.)
     }
 }
 
 export function initializeMainAppEventListeners() { 
+    document.removeEventListener('keydown', handleGlobalKeydown);
     document.addEventListener('keydown', handleGlobalKeydown);
-    updateBackButtonVisibility(); // This is from confirmationDialog.js
+    // The call to updateBackButtonVisibility might be best placed in core.js after all UI initializations.
 } 

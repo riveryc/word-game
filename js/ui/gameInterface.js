@@ -9,11 +9,13 @@ import { keyboardManager, KeyboardShortcuts } from '../utils/keyboard.js';
  */
 export class GameInterfaceManager {
     constructor() {
+        console.log('[GameInterfaceManager] Constructor called.');
         this.isActive = false;
         this.currentPuzzle = null;
         this.onWordSubmitCallback = null;
         this.onRepeatWordCallback = null;
         this.lastSelectedInputIndex = -1;
+        this._handleDocumentClickForFocusBound = null;
         this.init();
     }
 
@@ -21,6 +23,8 @@ export class GameInterfaceManager {
      * Initialize game interface manager
      */
     init() {
+        console.log('[GameInterfaceManager] init() called.');
+        this._handleDocumentClickForFocusBound = this._handleDocumentClickForFocus.bind(this);
         this.setupEventListeners();
     }
 
@@ -28,7 +32,8 @@ export class GameInterfaceManager {
      * Set up event listeners for game interface
      */
     setupEventListeners() {
-        this.setupRepeatButton();
+        console.log('[GameInterfaceManager] setupEventListeners() called.');
+        // this.setupRepeatButton(); // Commented out to prevent conflict with gamePlayInterface.js
         this.setupKeyboardShortcuts();
     }
 
@@ -38,9 +43,13 @@ export class GameInterfaceManager {
     setupRepeatButton() {
         const repeatButton = getElementById(ELEMENTS.REPEAT_BUTTON);
         if (repeatButton) {
+            console.log('[GameInterfaceManager] Setting up repeat button listener for:', repeatButton);
             repeatButton.addEventListener('click', () => {
+                console.log('[GameInterfaceManager] Repeat button clicked!');
                 this.repeatWord();
             });
+        } else {
+            console.error('[GameInterfaceManager] Repeat button element not found!');
         }
     }
 
@@ -69,6 +78,7 @@ export class GameInterfaceManager {
     activate() {
         this.isActive = true;
         this.setupInputFieldListeners();
+        document.addEventListener('click', this._handleDocumentClickForFocusBound, true);
     }
 
     /**
@@ -77,6 +87,38 @@ export class GameInterfaceManager {
     deactivate() {
         this.isActive = false;
         this.clearInputFieldListeners();
+        document.removeEventListener('click', this._handleDocumentClickForFocusBound, true);
+    }
+
+    /**
+     * Handles clicks on the document to maintain focus on input fields during active gameplay.
+     * @param {MouseEvent} event - The click event.
+     */
+    _handleDocumentClickForFocus(event) {
+        if (!this.isActive) {
+            return;
+        }
+
+        const target = event.target;
+        const gameInterfaceElement = getElementById(ELEMENTS.GAME_INTERFACE); // Get the main game interface container
+        const repeatButtonElement = getElementById(ELEMENTS.REPEAT_BUTTON);
+
+        // If the click is on an input field itself or the repeat button, do nothing.
+        if (target.classList.contains(CSS_CLASSES.INLINE_INPUT) || 
+            (repeatButtonElement && repeatButtonElement.contains(target))) {
+            return;
+        }
+
+        // If the click is anywhere else (either inside the game interface but not on an interactive element,
+        // or outside the game interface entirely), then refocus the last input.
+        // We check if gameInterfaceElement exists to be safe.
+        if (gameInterfaceElement) { 
+            // No specific check for `gameInterfaceElement.contains(target)` is needed here based on the new logic.
+            // If it's not an input and not the repeat button, we refocus.
+            setTimeout(() => {
+                this.focusLastSelectedInput();
+            }, 0);
+        }
     }
 
     /**
@@ -344,14 +386,18 @@ export class GameInterfaceManager {
      * Repeat current word audio
      */
     repeatWord() {
-        if (!this.isActive || !this.onRepeatWordCallback) return;
+        console.log('[GameInterfaceManager] repeatWord() called. isActive:', this.isActive, 'onRepeatWordCallback defined:', !!this.onRepeatWordCallback);
+        if (!this.isActive || !this.onRepeatWordCallback) {
+            console.warn('[GameInterfaceManager] repeatWord() returning early. isActive:', this.isActive, 'Callback defined:', !!this.onRepeatWordCallback);
+            return;
+        }
 
         this.onRepeatWordCallback();
         
-        // Refocus last selected input after audio
+        console.log('[GameInterfaceManager] Refocusing after repeatWord call.');
         setTimeout(() => {
             this.focusLastSelectedInput();
-        }, 100);
+        }, 100); // 100ms might be too short if audio is long, but okay for focus
     }
 
     /**
@@ -413,6 +459,7 @@ export class GameInterfaceManager {
      * @param {Function} callback - Callback function
      */
     setOnRepeatWordCallback(callback) {
+        console.log('[GameInterfaceManager] setOnRepeatWordCallback called with:', callback);
         this.onRepeatWordCallback = callback;
     }
 
@@ -434,4 +481,5 @@ export class GameInterfaceManager {
 }
 
 // Global game interface manager instance
+console.log('[GameInterfaceManager] Instantiating GameInterfaceManager...');
 export const gameInterfaceManager = new GameInterfaceManager();

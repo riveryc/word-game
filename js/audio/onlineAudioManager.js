@@ -19,35 +19,59 @@ function normalizeWordForAudio(word) {
  * Initializes audio controls, sets up event listeners for audio source selection.
  */
 function initAudioControls() {
-    console.log("Attempting to initialize Online Audio Manager controls...");
-    const onlineRadio = document.getElementById('audioOnline');
-    const offlineRadio = document.getElementById('audioOffline');
+    console.log("Attempting to initialize Online Audio Manager controls (div-based)...");
+    const audioOptions = document.querySelectorAll('.tts-option');
 
-    if (onlineRadio && offlineRadio) {
-        console.log("Audio source radio buttons found.");
-        // Set initial state based on default checked (though already set globally)
-        if (onlineRadio.checked) {
-            window.currentAudioSource = 'online';
-        } else if (offlineRadio.checked) {
-            window.currentAudioSource = 'offline';
+    if (audioOptions.length > 0) {
+        console.log("Audio option divs found for div-based selection.");
+
+        const updateSelection = (selectedOptionDiv) => {
+            audioOptions.forEach(opt => opt.classList.remove('selected'));
+            selectedOptionDiv.classList.add('selected');
+            
+            const method = selectedOptionDiv.dataset.method;
+            if (method) {
+                window.currentAudioSource = method;
+                console.log("Audio source changed to:", window.currentAudioSource);
+            } else {
+                console.warn("Clicked audio option div is missing data-method attribute.");
+            }
+        };
+
+        audioOptions.forEach(optionDiv => {
+            optionDiv.addEventListener('click', function() {
+                updateSelection(this);
+            });
+        });
+        
+        // Set initial state from the div that has .selected class from HTML
+        let initialStateSet = false;
+        const initiallySelectedDiv = document.querySelector('.tts-option.selected');
+        if (initiallySelectedDiv) {
+            const initialMethod = initiallySelectedDiv.dataset.method;
+            if (initialMethod) {
+                window.currentAudioSource = initialMethod;
+                console.log("Initial audio source (from selected div):", window.currentAudioSource);
+                initialStateSet = true;
+            } else {
+                console.warn("Initially selected div is missing data-method. Defaulting...");
+            }
         }
-        console.log("Initial audio source:", window.currentAudioSource);
 
-        onlineRadio.addEventListener('change', function() {
-            if (this.checked) {
-                window.currentAudioSource = 'online';
-                console.log("Audio source changed to:", window.currentAudioSource);
+        // Fallback if no .selected class was found in HTML or data-method was missing
+        if (!initialStateSet) {
+            console.log("No initial .selected div with data-method found, or data-method missing. Defaulting to 'online'.");
+            const onlineOptionDiv = Array.from(audioOptions).find(opt => opt.dataset.method === 'online');
+            if (onlineOptionDiv) {
+                updateSelection(onlineOptionDiv);
+            } else if (audioOptions.length > 0) {
+                // If online specifically isn't found, default to the first option available
+                updateSelection(audioOptions[0]); 
             }
-        });
+        }
 
-        offlineRadio.addEventListener('change', function() {
-            if (this.checked) {
-                window.currentAudioSource = 'offline';
-                console.log("Audio source changed to:", window.currentAudioSource);
-            }
-        });
     } else {
-        console.error("Audio source radio buttons (#audioOnline, #audioOffline) not found!");
+        console.error("Audio option divs (.tts-option) not found for div-based selection!");
     }
 }
 

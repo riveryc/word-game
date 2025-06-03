@@ -152,19 +152,19 @@
                     <!-- Using a fieldset for semantic grouping of radio buttons -->
                     <!-- Style override 'border: none;' is a suggestion; adapt styling as needed -->
                     <div class="tts-options"> <!-- Reusing existing class for potential styling -->
-                        <div class="tts-option" data-method="online"> <!-- Re-using tts-option for styling, data-method for JS if needed -->
-                            <input type="radio" id="audioOnline" name="audioSource" value="online" checked class="tts-radio-input">
-                            <label for="audioOnline" class="tts-label">
-                                <div class="tts-name">☁️ Online</div>
-                                <div class="tts-description">Google/Dictionary (caches on server, internet required for first play of a word)</div>
-                            </label>
+                        <div class="tts-option selected" data-method="online"> <!-- Added .selected class to default, data-method holds value -->
+                            <!-- <input type="radio" id="audioOnline" name="audioSource" value="online" checked class="tts-radio-input"> -->
+                            <!-- <label for="audioOnline" class="tts-label"> -->
+                                <div class="tts-name">Online</div>
+                                <div class="tts-description">Google / Dictionary</div>
+                            <!-- </label> -->
                         </div>
                         <div class="tts-option" data-method="offline">
-                            <input type="radio" id="audioOffline" name="audioSource" value="offline" class="tts-radio-input">
-                            <label for="audioOffline" class="tts-label">
-                                <div class="tts-name">💻 Offline</div>
-                                <div class="tts-description">Browser audio (always available)</div>
-                            </label>
+                            <!-- <input type="radio" id="audioOffline" name="audioSource" value="offline" class="tts-radio-input"> -->
+                            <!-- <label for="audioOffline" class="tts-label"> -->
+                                <div class="tts-name">Offline</div>
+                                <div class="tts-description">Native TTS</div>
+                            <!-- </label> -->
                         </div>
                     </div>
                 </fieldset>
@@ -255,8 +255,8 @@
                 Your progress will be lost.
             </div>
             <div class="confirmation-buttons">
-                <button class="confirmation-button selected" id="no-button" onclick="selectConfirmationOption('no')">No</button>
-                <button class="confirmation-button yes-button" id="yes-button" onclick="selectConfirmationOption('yes')">Yes</button>
+                <button class="confirmation-button selected" id="no-button">No</button>
+                <button class="confirmation-button yes-button" id="yes-button">Yes</button>
             </div>
             <div class="confirmation-instructions">
                 Use ← → arrow keys to select • Press Enter to confirm • Press ESC to cancel
@@ -281,6 +281,7 @@
     <script src="js/audio/audioManager.js" type="module"></script>
     <script src="js/audio/onlineAudioManager.js" defer></script>
     <script src="js/game/gameManager.js" type="module"></script>
+    <script src="js/ui/gameInterface.js" type="module"></script>
     <!-- <script src="js/game/levelManager.js"></script> -->
 </body>
 </html>
