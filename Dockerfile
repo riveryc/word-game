@@ -14,16 +14,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # (This will be affected by .dockerignore)
 COPY . .
 
-# Make port 5000 available to the world outside this container
-# Flask default port is 5000
-EXPOSE 5000
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
 
-# Define environment variables (optional, but good practice)
+# Define environment variables
 ENV FLASK_APP=server.py
 ENV FLASK_RUN_HOST=0.0.0.0
-# To run in production mode, you might set FLASK_ENV=production
-# For development, Flask defaults to development mode if FLASK_DEBUG is not set, or use FLASK_DEBUG=1
-# ENV FLASK_DEBUG=0 # Or 1 for development debugging
+ENV FLASK_RUN_PORT=8000
+ENV FLASK_DEBUG=0
 
 # Run server.py when the container launches
 # Using exec form for CMD is generally recommended
