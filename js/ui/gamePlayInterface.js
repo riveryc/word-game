@@ -1,11 +1,10 @@
 // js/ui/gamePlayInterface.js
 
 // Module-specific state for the game play interface
-let lastFocusedInput = null;
 let waitingForContinue = false;
 let isProcessing = false;
-let isGamePlayActiveForFocus = false; // Flag for focus management
-let boundHandleDocumentClickForFocus = null; // For storing the bound event handler
+// let isGamePlayActiveForFocus = false; // Focus lock logic may need to be re-evaluated or simplified
+// let boundHandleDocumentClickForFocus = null; 
 
 // References to functions from other modules, to be set during initialization
 let processAnswerFn = null;
@@ -14,63 +13,28 @@ let getTimerContextFn = null;
 let stopWordTimerFn = null;
 let startWordTimerFn = null;
 let repeatWordFn = null;
-let getGameManagerCurrentWordFn = null; // Let's use this to store the callback
+// let getGameManagerCurrentWordFn = null; // Not actively used in this refactor, can be re-added if needed
 
 // DOM Elements (cache them if frequently accessed)
 let gameInterfaceDiv = null;
-let wordDisplayDiv = null;
+let wordDisplayDiv = null; 
 let progressDiv = null;
 let wordDescriptionDiv = null;
 let feedbackDiv = null;
 
-// New function to handle document clicks for focus
-function handleDocumentClickForFocus(event) {
-    // Only run if focus management is active and the game interface is visible
-    if (!isGamePlayActiveForFocus || !gameInterfaceDiv || gameInterfaceDiv.style.display !== 'block') {
-        return;
-    }
+// Array to hold the actual HTML input elements for letters
+let inputElements = []; 
+let currentFocusedInputIndex = -1;
 
-    const target = event.target;
-    const repeatButton = document.getElementById('repeat-button'); 
-
-    // Allow clicks on inputs or the repeat button (and its children, if any) without refocusing
-    if (target.classList.contains('inline-input') || (repeatButton && repeatButton.contains(target))) {
-        return;
-    }
-
-    // If the click is on any other element, refocus the last known input
-    console.log("[gamePlayInterface.js] Document click detected outside interactive elements, refocusing input.");
-    setTimeout(() => {
-        if (lastFocusedInput && document.body.contains(lastFocusedInput)) {
-            lastFocusedInput.focus();
-        } else {
-            const firstInput = wordDisplayDiv ? wordDisplayDiv.querySelector('.inline-input') : null;
-            if (firstInput) {
-                firstInput.focus();
-            }
-        }
-    }, 0);
-}
-
-// Function to display the word challenge (replaces showNextWordUI from script.js)
-function displayWordChallenge(data) {
+// Function to display the word challenge
+function displayWordChallenge(currentWordData) { 
     console.log("[gamePlayInterface.displayWordChallenge] Called. Resetting flags.");
     isProcessing = false;
     waitingForContinue = false;
+    inputElements = []; 
+    currentFocusedInputIndex = -1;
 
-    // Activate focus management
-    if (!isGamePlayActiveForFocus) { 
-        if (!boundHandleDocumentClickForFocus) {
-            boundHandleDocumentClickForFocus = handleDocumentClickForFocus.bind(this); // `this` might not be ideal here if not a class method
-                                                                            // Let's make handleDocumentClickForFocus a standalone function if it doesn't need `this` context from a class
-                                                                            // Since it's not in a class, `this` is not relevant, so direct reference is fine.
-            boundHandleDocumentClickForFocus = handleDocumentClickForFocus; 
-        }
-        document.addEventListener('click', boundHandleDocumentClickForFocus, true); // Use capture phase
-        console.log("[gamePlayInterface.js] Focus lock event listener ADDED.");
-    }
-    isGamePlayActiveForFocus = true;
-
+    // Cache DOM elements if not already done
     if (!gameInterfaceDiv) gameInterfaceDiv = document.getElementById('game-interface');
     if (!wordDisplayDiv) wordDisplayDiv = document.getElementById('word-display');
     if (!progressDiv) progressDiv = document.getElementById('progress');
@@ -78,132 +42,178 @@ function displayWordChallenge(data) {
     if (!feedbackDiv) feedbackDiv = document.getElementById('feedback');
 
     gameInterfaceDiv.style.display = 'block';
-    wordDisplayDiv.innerHTML = '';
+    wordDisplayDiv.innerHTML = ''; // Clear previous content
+    if(feedbackDiv) feedbackDiv.innerHTML = ''; // Clear previous feedback
 
-    data.wordStructure.forEach((item) => {
-        if (item.type === 'visible') {
-            const span = document.createElement('span');
-            span.textContent = item.letter;
-            span.className = 'visible-letter';
-            wordDisplayDiv.appendChild(span);
-        } else {
+    if (currentWordData && currentWordData.word && currentWordData.sentencePrefix !== undefined && currentWordData.sentenceSuffix !== undefined) {
+        // 1. Display sentence prefix
+        const prefixDiv = document.createElement('div');
+        prefixDiv.textContent = currentWordData.sentencePrefix;
+        prefixDiv.className = 'sentence-prefix sentence-segment'; // Ensure this class styles it as block/centered
+        wordDisplayDiv.appendChild(prefixDiv);
+
+        // 2. Create and display input fields for the missing word
+        const wordGuessArea = document.createElement('div');
+        wordGuessArea.className = 'word-guess-area'; // Styles for centering, flex display
+        
+        for (let i = 0; i < currentWordData.word.length; i++) {
             const input = document.createElement('input');
             input.type = 'text';
+            input.className = 'inline-input'; // Use the existing style for single letter inputs
             input.maxLength = 1;
-            input.className = 'inline-input';
-            input.dataset.index = item.index;
-            input.dataset.expectedLetter = item.letter;
-            input.addEventListener('input', handleInlineInput);
-            input.addEventListener('keydown', handleInlineKeydown);
-            input.addEventListener('focus', handleInputFocus);
-            wordDisplayDiv.appendChild(input);
+            input.dataset.index = i; 
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('autocorrect', 'off');
+            input.setAttribute('autocapitalize', 'off');
+            input.setAttribute('spellcheck', 'false');
+            
+            // Add event listeners directly to inputs for better control
+            input.addEventListener('keydown', handleInputKeydown);
+            input.addEventListener('input', handleInputChange); // For auto-focus next, and value manipulation
+            input.addEventListener('focus', (e) => {
+                currentFocusedInputIndex = parseInt(e.target.dataset.index);
+            });
+
+            wordGuessArea.appendChild(input);
+            inputElements.push(input);
         }
-    });
+        wordDisplayDiv.appendChild(wordGuessArea);
 
-    progressDiv.textContent = data.progressText;
-    wordDescriptionDiv.innerHTML = data.hintText;
-    if(feedbackDiv) feedbackDiv.textContent = ''; 
-
-    lastFocusedInput = null;
-
-    if (startWordTimerFn) {
-        startWordTimerFn(data.missingLetterCount);
-    }
-
-    const firstInput = wordDisplayDiv.querySelector('.inline-input');
-    if (firstInput) {
-        firstInput.focus();
-        lastFocusedInput = firstInput;
-    }
-}
-
-function handleInputFocus(event) {
-    lastFocusedInput = event.target;
-}
-
-function handleInlineInput(event) {
-    const input = event.target;
-    const originalValue = input.value;
-    const lowerCaseValue = originalValue.toLowerCase();
-
-    // Visually update the input field to lowercase if it changed
-    if (originalValue !== lowerCaseValue) {
-        input.value = lowerCaseValue;
-    }
-
-    // Auto-advance logic (uses the lowercased value for the check)
-    if (lowerCaseValue) { 
-        const allInputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
-        const currentIndex = allInputs.indexOf(input);
-        if (currentIndex < allInputs.length - 1) {
-            allInputs[currentIndex + 1].focus();
+        // 3. Display sentence suffix
+        const suffixDiv = document.createElement('div');
+        suffixDiv.textContent = currentWordData.sentenceSuffix;
+        suffixDiv.className = 'sentence-suffix sentence-segment'; // Ensure this class styles it as block/centered
+        wordDisplayDiv.appendChild(suffixDiv);
+        
+        // Set initial focus on the first input element
+        if (inputElements.length > 0) {
+            currentFocusedInputIndex = 0;
+            inputElements[0].focus();
         }
+
+        // Remove the global keydown listener if it exists from the previous letter-box implementation
+        document.removeEventListener('keydown', handleGlobalKeydown); 
+        // Add a general keydown listener for Enter (to submit) and Space (to repeat) when inputs are not focused
+        // or for actions that are not input-specific.
+        document.addEventListener('keydown', handleDocumentKeydown);
+
+    } else {
+        wordDisplayDiv.textContent = 'Error: Word data is incomplete.';
+        console.error("[gamePlayInterface.displayWordChallenge] Incomplete currentWordData:", currentWordData);
+    }
+
+    progressDiv.textContent = currentWordData.progressText || '';
+    wordDescriptionDiv.innerHTML = currentWordData.hintText || (currentWordData.description || '');
+
+    if (startWordTimerFn && currentWordData && currentWordData.word) {
+        startWordTimerFn(currentWordData.word.length); 
     }
 }
 
-function handleInlineKeydown(event) {
+function focusInputElement(index) {
+    if (index >= 0 && index < inputElements.length) {
+        inputElements[index].focus();
+        currentFocusedInputIndex = index;
+    }
+}
+
+function handleInputChange(event) {
     const input = event.target;
-    console.log(`[gamePlayInterface.handleInlineKeydown] Key: ${event.key}, isProcessing: ${isProcessing}, waitingForContinue: ${waitingForContinue}`);
+    const index = parseInt(input.dataset.index);
+
+    // Force lowercase and keep only the first character
+    input.value = input.value.toLowerCase().charAt(0);
+
+    // If a character was entered and it's not the last input, move to the next one
+    if (input.value && index < inputElements.length - 1) {
+        focusInputElement(index + 1);
+    }
+}
+
+// Keydown specifically for the input elements
+function handleInputKeydown(event) {
+    const index = parseInt(event.target.dataset.index);
+    isProcessing = false; // Allow processing unless explicitly set by checkAnswer or continue
 
     if (event.key === 'Enter') {
-        if (isProcessing) {
-            console.log("[gamePlayInterface.handleInlineKeydown] Enter pressed, but blocked by isProcessing=true.");
-            return;
-        }
-
-        if (waitingForContinue) {
-            console.log("[gamePlayInterface.handleInlineKeydown] Enter to continue. Setting isProcessing=true, waitingForContinue=false.");
-            isProcessing = true;
+        event.preventDefault(); // Prevent form submission if inputs are in a form
+        if (waitingForContinue) { // If waiting for 'Enter' to continue to next word
+            isProcessing = true; // Prevent further input processing during transition
             waitingForContinue = false;
-            if (requestNextWordFn) {
-                requestNextWordFn();
-            }
+            document.removeEventListener('keydown', handleDocumentKeydown);
+            if (requestNextWordFn) requestNextWordFn();
         } else {
-            console.log("[gamePlayInterface.handleInlineKeydown] Enter to check answer.");
-            checkAnswerInternal(); 
+            checkAnswerInternal();
+        }
+    } else if (event.key === 'Backspace') {
+        if (!event.target.value && index > 0) { // If input is empty and not the first one, move to previous
+            event.preventDefault();
+            focusInputElement(index - 1);
+        } 
+        // If it has value, normal backspace behavior will clear it. Then user can type or backspace again.
+    } else if (event.key === 'ArrowLeft') {
+        if (index > 0) {
+            event.preventDefault();
+            focusInputElement(index - 1);
+        }
+    } else if (event.key === 'ArrowRight') {
+        if (index < inputElements.length - 1) {
+            event.preventDefault();
+            focusInputElement(index + 1);
         }
     } else if (event.key === ' ' || event.key === 'Spacebar') {
         event.preventDefault();
-        if (repeatWordFn) {
-            repeatWordFn(); 
-        }
-    } else if (event.key === 'Backspace' && !input.value && !waitingForContinue) {
-        const allInputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
-        const currentIndex = allInputs.indexOf(input);
-        if (currentIndex > 0) {
-            allInputs[currentIndex - 1].focus();
-        }
+        if (repeatWordFn) repeatWordFn();
+    } else if (event.key.length === 1 && !event.key.match(/[a-z0-9]/i)) { // Allow only alpha-numeric
+        event.preventDefault(); // Prevent non-alphanumeric characters (except space handled above)
+    }
+    // Let other keys (like letters) be handled by the input field itself and `handleInputChange`
+}
+
+// General keydown listener for the document (e.g., for space to repeat when inputs not focused, or global enter)
+function handleDocumentKeydown(event) {
+    if (event.target.nodeName === 'INPUT') return; // Already handled by handleInputKeydown
+
+    if (event.key === 'Enter' && waitingForContinue) {
+        isProcessing = true;
+        waitingForContinue = false;
+        document.removeEventListener('keydown', handleDocumentKeydown);
+        if (requestNextWordFn) requestNextWordFn();
+    } else if ((event.key === ' ' || event.key === 'Spacebar') && !isProcessing) {
+        event.preventDefault();
+        if (repeatWordFn) repeatWordFn();
     }
 }
 
-// Moved from script.js
-function createWordComparisonUI(userAnswers, expectedWord) {
-    let userAttempt = '';
-    const wordDisplayChildren = wordDisplayDiv.children; // Use cached wordDisplayDiv
-    let inputIdx = 0;
-    for (let child of wordDisplayChildren) {
-        if (child.classList.contains('visible-letter')) {
-            userAttempt += child.textContent.toLowerCase();
-        } else if (child.classList.contains('inline-input')) {
-            userAttempt += (userAnswers[inputIdx] || '_').toLowerCase();
-            inputIdx++;
-        }
-    }
+// This is the old global keydown, it should be removed or its logic merged if necessary.
+// For now, it's effectively replaced by per-input listeners and handleDocumentKeydown.
+function handleGlobalKeydown(event) { /* ... This function should be removed ... */ }
 
-    let correctWordHighlighted = '';
-    for (let i = 0; i < expectedWord.length; i++) {
-        const correctLetter = expectedWord[i].toLowerCase();
-        const userLetter = i < userAttempt.length ? userAttempt[i] : '_';
-        if (correctLetter === userLetter) {
-            correctWordHighlighted += `<span style="color: #90EE90;">${expectedWord[i]}</span>`;
-        } else {
-            correctWordHighlighted += `<span style="color: #FF6B6B; font-weight: bold; font-size: 1.2em; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);">${expectedWord[i]}</span>`;
+
+function applyFeedbackToInputs(userAttemptString, expectedWordString) {
+    userAttemptString = String(userAttemptString || '').toLowerCase();
+    expectedWordString = String(expectedWordString || ''); // Keep original case from game state
+    let allCorrect = true;
+
+    for (let i = 0; i < inputElements.length; i++) {
+        const input = inputElements[i];
+        const expectedCharOriginal = expectedWordString[i] || '';
+        const userChar = userAttemptString[i] || '';
+
+        input.value = expectedCharOriginal; // Show the correct letter
+        input.readOnly = true; // Make input readonly after checking
+        input.classList.remove('input-correct', 'input-incorrect'); // Clear previous feedback classes
+
+        if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
+            input.classList.add('input-incorrect');
+            allCorrect = false;
         }
+        // 'input-correct' class is no longer added for correct characters
     }
-    return { userAttempt: userAttempt.replace(/_/g, '?'), correctWordHighlighted };
+    return allCorrect;
 }
 
-// Moved from script.js (and renamed from checkAnswer)
+
 function checkAnswerInternal() {
     if (waitingForContinue || isProcessing) {
         console.log(`[gamePlayInterface.checkAnswerInternal] Blocked. waitingForContinue: ${waitingForContinue}, isProcessing: ${isProcessing}`);
@@ -213,12 +223,12 @@ function checkAnswerInternal() {
     isProcessing = true; 
 
     const finalTimeElapsed = stopWordTimerFn ? stopWordTimerFn() : 0;
-    const allInputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
-    const userAnswers = Array.from(allInputs).map(input => input.value.trim());
-    // feedbackDiv is already cached
+    
+    let userAnswer = inputElements.map(input => input.value.trim().toLowerCase()).join('');
 
-    if (userAnswers.some(answer => answer === '')) {
-        if(feedbackDiv) feedbackDiv.innerHTML = '<span class="incorrect">Please fill in all the missing letters!</span>';
+    if (!inputElements.some(input => input.value.trim() !== '')) {
+        if(feedbackDiv) feedbackDiv.innerHTML = '<span class="incorrect">Please type the missing word!</span>';
+        if (inputElements.length > 0) focusInputElement(0);
         console.log("[gamePlayInterface.checkAnswerInternal] Empty input. Resetting isProcessing=false.");
         isProcessing = false; 
         return;
@@ -229,10 +239,20 @@ function checkAnswerInternal() {
         isProcessing = false;
         return;
     }
-    const answerProcessingResult = processAnswerFn(userAnswers, finalTimeElapsed);
+
+    const answerProcessingResult = processAnswerFn(userAnswer, finalTimeElapsed);
+    
+    applyFeedbackToInputs(userAnswer, answerProcessingResult.correctAnswer);
     
     let feedbackHTML = '';
-    const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0 }; 
+    let timerInfoHTML = '';
+    const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0 };
+
+    if (answerProcessingResult.resultStatus !== 'success' && answerProcessingResult.resultStatus !== 'timeout' && timerEvalContext.currentWordTimeoutThreshold > 0) {
+        const timeTaken = answerProcessingResult.feedbackTime.toFixed(1);
+        const timeLimit = (timerEvalContext.currentWordTimeoutThreshold * (answerProcessingResult.correctAnswer || '').length).toFixed(1);
+        timerInfoHTML = `<div style="font-size: 0.9em; margin-top: 5px;">Time: ${timeTaken}s (Limit: ${timeLimit}s)</div>`;
+    }
 
     if (answerProcessingResult.resultStatus === 'success') {
         feedbackHTML = `
@@ -240,136 +260,84 @@ function checkAnswerInternal() {
                 <span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br>
                 <div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">
                     Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s
-                </div>`;
-    } else if (answerProcessingResult.resultStatus === 'timeout') {
+                </div>
+            </div>`;
+    } else if (answerProcessingResult.resultStatus === 'timeout') { 
         feedbackHTML = `
             <div class="correct-feedback">
-                <span class="correct" style="font-size: 1.5em;">✅ Correct!</span><br>
-                <span style="color: #FFD700; font-size: 1.2em;">⚠️ But took too long</span><br>
+                <span class="correct" style="font-size: 1.5em;">✅ Correct (but a bit slow)</span><br>
                 <div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">
-                    Time: ${answerProcessingResult.feedbackTime.toFixed(1)}s (limit: ${timerEvalContext.currentWordTimeoutThreshold}s)
+                    Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s. Try to be faster!
                 </div>
-                <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
-                    This word will be retried once for speed practice
-                </div>`;
-    } else { 
-        const comparison = createWordComparisonUI(userAnswers, answerProcessingResult.correctWord);
+            </div>`;
+    } else { // Incorrect
         feedbackHTML = `
-            <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect!</span><br>`;
-        if (answerProcessingResult.resultStatus === 'timeout_incorrect') {
-            feedbackHTML += `<span style="color: #FFD700; font-size: 1.1em;">⚠️ And took too long</span><br>
-                             <div style="margin-top: 10px; font-size: 1.1em; color: #FFB6C1;">
-                                Time: ${answerProcessingResult.feedbackTime.toFixed(1)}s (limit: ${timerEvalContext.currentWordTimeoutThreshold}s)
-                             </div>`;
-        } else { 
-             feedbackHTML += `<div style="margin-top: 10px; font-size: 1.1em; color: #FFB6C1;">
-                                Time: ${answerProcessingResult.feedbackTime.toFixed(1)}s
-                             </div>`;
-        }
-        feedbackHTML += `
-            <div class="comparison-section">
-                <div style="margin-bottom: 15px;">
-                    <strong>Your answer:</strong>
-                    <div class="user-answer-display">${comparison.userAttempt}</div>
+            <div class="incorrect-feedback">
+                <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><br>
+                <div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">
+                    Press Enter to continue.
+                    ${timerInfoHTML} 
                 </div>
-                <div>
-                    <strong>Correct answer:</strong>
-                    <div class="correct-word-display" style="letter-spacing: 3px;">${comparison.correctWordHighlighted}</div>
-                </div>
-            </div>
-            <div style="margin-top: 10px; font-size: 1em; color: #E6E6FA;">
-                This word will be retried (accuracy / speed practice)
             </div>`;
     }
     
-    feedbackHTML += `
-        <div style="margin-top: 15px; font-size: 1.2em;">
-            Press <strong>Enter</strong> to continue
-        </div>
-    </div>`;
     if(feedbackDiv) feedbackDiv.innerHTML = feedbackHTML;
-    if(feedbackDiv) feedbackDiv.className = `feedback ${answerProcessingResult.isCorrect && (answerProcessingResult.resultStatus === 'success' || answerProcessingResult.resultStatus === 'timeout') ? 'correct' : 'incorrect'}`;
 
-    console.log("[gamePlayInterface.checkAnswerInternal] Feedback displayed. Setting waitingForContinue=true.");
     waitingForContinue = true; 
-
-    if (answerProcessingResult.showFinalResults) {
-        console.log("[gamePlayInterface.checkAnswerInternal] Game will show final results.");
-    } else if (answerProcessingResult.canContinue) {
-        console.log("[gamePlayInterface.checkAnswerInternal] Game can continue.");
-    } else {
-        console.error("[gamePlayInterface.checkAnswerInternal] Game logic error: Cannot continue, but not showing final results.");
-    }
-
-    if (allInputs.length > 0 && !answerProcessingResult.showFinalResults) {
-         const firstInput = wordDisplayDiv.querySelector('.inline-input'); // Re-query in case DOM changed
-         if (firstInput) firstInput.focus(); 
-    } 
-    
-    console.log("[gamePlayInterface.checkAnswerInternal] Ending. Resetting isProcessing=false.");
-    isProcessing = false; 
+    document.removeEventListener('keydown', handleDocumentKeydown); 
+    document.addEventListener('keydown', handleDocumentKeydown);
 }
 
-// New function to deactivate focus lock
+
+export function clearGamePlayUI() {
+    if (gameInterfaceDiv) gameInterfaceDiv.style.display = 'none';
+    if (wordDisplayDiv) wordDisplayDiv.innerHTML = '';
+    if (progressDiv) progressDiv.textContent = '';
+    if (wordDescriptionDiv) wordDescriptionDiv.textContent = '';
+    if (feedbackDiv) feedbackDiv.innerHTML = '';
+    inputElements = [];
+    currentFocusedInputIndex = -1;
+    isProcessing = false;
+    waitingForContinue = false;
+    document.removeEventListener('keydown', handleInputKeydown); // This might not be necessary if inputs are removed
+    document.removeEventListener('keydown', handleDocumentKeydown);
+    document.removeEventListener('keydown', handleGlobalKeydown); // Cleanup old one just in case
+    console.log("[gamePlayInterface.clearGamePlayUI] UI cleared and keydown listeners managed.");
+}
+
 export function deactivateGamePlayFocusLock() {
-    if (isGamePlayActiveForFocus && boundHandleDocumentClickForFocus) {
-        document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
-        console.log("[gamePlayInterface.js] Focus lock event listener REMOVED.");
-    }
-    isGamePlayActiveForFocus = false;
+    // isGamePlayActiveForFocus = false;
+    // if (boundHandleDocumentClickForFocus) {
+    //     document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
+    //     console.log("[gamePlayInterface.js] Focus lock event listener REMOVED via deactivate.");
+    // }
 }
 
 export function initializeGamePlayInterface(callbacks) {
-    console.log("----------------------------------------------------------");
-    console.log("[gamePlayInterface.js] INITIALIZE CALLED with callbacks:", callbacks);
-    console.log("----------------------------------------------------------");
     processAnswerFn = callbacks.processAnswer;
-    requestNextWordFn = callbacks.requestNextWordOrEndGameDisplay;
-    getTimerContextFn = callbacks.getTimerEvaluationContext;
+    requestNextWordFn = callbacks.requestNextWord;
+    getTimerContextFn = callbacks.getTimerContext; 
     stopWordTimerFn = callbacks.stopWordTimer;
     startWordTimerFn = callbacks.startWordTimer;
-    getGameManagerCurrentWordFn = callbacks.getCurrentWord; 
-    
-    if (typeof window.playWordAudio === 'function' && typeof getGameManagerCurrentWordFn === 'function') {
-        repeatWordFn = () => {
-            console.log("[gamePlayInterface.js] repeatWordFn triggered (via button or spacebar)."); 
-            const currentWordObj = getGameManagerCurrentWordFn();
-            if (currentWordObj && currentWordObj.word) {
-                window.playWordAudio(currentWordObj.word);
-            } else {
-                console.warn("[gamePlayInterface.js] repeatWordFn: Could not get current word to play.");
-            }
-        };
-    } else {
-        console.warn("[gamePlayInterface.initialize] window.playWordAudio or getCurrentWord callback is not available. Repeat function not set up.");
-        repeatWordFn = () => console.log("[gamePlayInterface.js] Repeat word function not properly set up.");
-    }
+    repeatWordFn = callbacks.repeatWord; 
+    // getGameManagerCurrentWordFn = callbacks.getGameManagerCurrentWord;
 
-    const htmlRepeatButton = document.getElementById('repeat-button');
-    if (htmlRepeatButton) {
-        if (repeatWordFn) {
-            htmlRepeatButton.addEventListener('click', repeatWordFn);
-            console.log("[gamePlayInterface.js] HTML repeat button listener added.");
-        } else {
-            console.error("[gamePlayInterface.js] repeatWordFn is not defined, cannot attach to HTML repeat button.");
-        }
-    } else {
-        console.error("[gamePlayInterface.js] HTML repeat button (id='repeat-button') not found.");
-    }
-
-    // Cache main divs if not already done, or ensure they are accessible
-    gameInterfaceDiv = document.getElementById('game-interface');
-    wordDisplayDiv = document.getElementById('word-display');
-    progressDiv = document.getElementById('progress');
-    wordDescriptionDiv = document.getElementById('word-description');
-    feedbackDiv = document.getElementById('feedback');
+    console.log("[gamePlayInterface.js] Initialized with callbacks.");
 }
 
-// Export for testing or if other modules need them (though displayWordChallenge, etc. are typically called internally or via main controller)
-export {
-    displayWordChallenge, // Already used by core.js
-    checkAnswerInternal,  // Already used by core.js
-    handleInlineInput,    // For testing
-    handleInputFocus,     // Potentially for testing or more complex focus logic if needed
-    handleInlineKeydown   // Potentially for testing keydown logic
-}; 
+// Function to reset cached DOM elements for testing purposes
+function resetUIStateForTesting() {
+    gameInterfaceDiv = null;
+    wordDisplayDiv = null;
+    progressDiv = null;
+    wordDescriptionDiv = null;
+    feedbackDiv = null;
+    inputElements = [];
+    currentFocusedInputIndex = -1;
+    // isProcessing and waitingForContinue are reset at the start of displayWordChallenge
+    console.log("[gamePlayInterface.js] Resetting UI state for testing.");
+}
+
+// Remove obsolete/renamed functions from export if they are not used elsewhere
+// export { displayWordChallenge, setActiveLetterBox, handleGlobalKeydown, createWordComparisonUI };
+export { displayWordChallenge, resetUIStateForTesting }; // Main export 

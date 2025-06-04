@@ -343,8 +343,8 @@ class AudioCacheManager {
     }
 }
 
-// Create global audio cache manager instance
-const audioCacheManager = new AudioCacheManager();
+// Create and export a single instance of the AudioCacheManager
+export const audioCache = new AudioCacheManager();
 
 // Enhanced fallback speech function
 function useFallbackSpeech(word) {
@@ -365,5 +365,5 @@ function useFallbackSpeech(word) {
 }
 
 // Export for global access
-window.audioCacheManager = audioCacheManager;
+window.audioCacheManager = audioCache;
 window.useFallbackSpeech = useFallbackSpeech;

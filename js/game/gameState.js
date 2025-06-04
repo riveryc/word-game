@@ -76,11 +76,46 @@ export class GameState {
         const shuffledWords = shuffleArray([...this.allWords]);
         
         // Take the requested number of words
-        this.gameWords = shuffledWords.slice(0, this.wordCount);
+        const selectedWords = shuffledWords.slice(0, this.wordCount);
+
+        this.gameWords = selectedWords.map(wordObj => {
+            // Ensure wordObj and its necessary properties exist
+            if (wordObj && typeof wordObj['Example sentence'] === 'string' && typeof wordObj.word === 'string') {
+                const sentence = wordObj['Example sentence'];
+                const targetWord = wordObj.word;
+
+                const lowerSentence = sentence.toLowerCase();
+                const lowerTargetWord = targetWord.toLowerCase();
+                const startIndex = lowerSentence.indexOf(lowerTargetWord);
+
+                if (startIndex !== -1) {
+                    // Successfully found the word (case-insensitively) for splitting
+                    wordObj.sentencePrefix = sentence.substring(0, startIndex);
+                    // The actual word to be guessed is targetWord (maintaining original case)
+                    wordObj.sentenceSuffix = sentence.substring(startIndex + targetWord.length);
+                } else {
+                    // This case should ideally be prevented by the filtering in dataSource.js
+                    // If it occurs, log an error and provide safe defaults.
+                    console.error(
+                        `GameState Error: Word "${targetWord}" not found (even case-insensitively) in its sentence "${sentence}". ` +
+                        `This might indicate an issue with data filtering or the data itself. ` +
+                        `Word object: ${JSON.stringify(wordObj)}`
+                    );
+                    // Make the word playable by showing the full sentence, but it won't have a blank.
+                    wordObj.sentencePrefix = sentence; 
+                    wordObj.sentenceSuffix = '';
+                    // wordObj.word remains the target for checking, though UI will be odd.
+                }
+            } else {
+                // Log if a wordObj is malformed, though filtering should prevent this.
+                console.warn('GameState Warning: Malformed word object encountered in prepareGameWords:', wordObj);
+            }
+            return wordObj;
+        });
         
         // Reset current word index
         this.currentWordIndex = 0;
-        this.currentWord = this.gameWords[0] || null;
+        this.currentWord = this.gameWords.length > 0 ? this.gameWords[0] : null;
     }
 
     /**

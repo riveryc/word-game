@@ -7,6 +7,7 @@ import { showFinalResults as showFinalResultsInterfaceFromResults } from './ui/r
 import { initializeGamePlayInterface, displayWordChallenge as displayWordChallengeFromGamePlay } from './ui/gamePlayInterface.js';
 import { initializeGameSetupInterface, displayGameSetupScreen as displayGameSetupScreenFromSetup } from './ui/gameSetupInterface.js';
 import { initializeMainAppEventListeners } from './ui/globalEventListeners.js';
+import { audioManager } from './audio/audioManager.js'; // Import AudioManager instance
 
 // These might be needed by functions called within initializeApp, ensure they are defined or imported if necessary.
 // For now, assuming they are globals or will be passed/managed differently.
@@ -104,13 +105,16 @@ function setupApplication() {
         showFinalResultsInterfaceFromResults(correctAnswers, totalWordsInGame, resultsDataForInterface, canRetry, isRetryModeFlag);
     }
 
-    function coreSpeakWord(word) {
-        console.log("[core.js coreSpeakWord] Called for word:", word);
-        if (typeof window.playWordAudio === 'function') {
-            window.playWordAudio(word);
-        } else {
-            console.warn("[core.js] coreSpeakWord: window.playWordAudio is not available. Word:", word);
-        }
+    // This function will be called by GameManager to play the new sentence
+    function corePlayNewSentence(sentence) {
+        console.log("[core.js corePlayNewSentence] Called for sentence:", sentence.substring(0, 50) + "...");
+        audioManager.playSentence(sentence);
+    }
+
+    // This function will be called by GamePlayInterface for the repeat button
+    function coreRepeatLastSentence() {
+        console.log("[core.js coreRepeatLastSentence] Called.");
+        audioManager.repeatCurrentSentence();
     }
 
     let coreSetupLevelSelectListeners; 
@@ -128,7 +132,9 @@ function setupApplication() {
     initializeGameSetupInterface({
         onWordCountChange: setGameManagerConfigImport, 
         getGlobalState: getScriptGlobals, // Use module-scoped getScriptGlobals
-        updateBackButtonVisibility: updateConfirmationDialogBackButtonVisibility
+        updateBackButtonVisibility: updateConfirmationDialogBackButtonVisibility,
+        // Pass audioManager to gameSetupInterface if it handles audio method selection directly
+        // audioManagerInstance: audioManager 
     });
 
     initializeDataSourceHandler({
@@ -180,7 +186,7 @@ function setupApplication() {
     initializeGameManager({ 
         showNextWordUI: coreShowNextWordUI,
         showFinalResultsUI: coreShowFinalResultsUI,
-        speakWord: coreSpeakWord,
+        speakWord: corePlayNewSentence, // GameManager calls this for new sentences
         getGlobalState: getScriptGlobals // Use module-scoped getScriptGlobals
     });
 
@@ -191,7 +197,7 @@ function setupApplication() {
         stopWordTimer: stopWordTimer,
         startWordTimer: startWordTimer,
         getCurrentWord: getGameManagerCurrentWordFromManager, 
-        speakWord: coreSpeakWord 
+        repeatWord: coreRepeatLastSentence // GamePlayInterface calls this for its repeat button
     });
 
     setupDataSourceSelectionHandler();

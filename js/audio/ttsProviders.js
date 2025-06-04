@@ -1,162 +1,82 @@
 // Text-to-speech provider implementations
 
-// Dictionary API TTS Provider
-class DictionaryTTSProvider {
-    constructor() {
-        this.name = 'dictionary';
-        this.baseUrl = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
-        this.timeout = 3000; // 3 second timeout
-    }
-
-    // Get audio URL from dictionary API
-    async getAudioUrl(word) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-            const response = await fetch(`${this.baseUrl}${word}`, {
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`Dictionary API error: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            // Look for audio URLs and prefer US pronunciation
-            let usAudioUrl = null;
-            let fallbackAudioUrl = null;
-
-            // Check all entries for audio
-            for (const entry of data) {
-                if (entry.phonetics) {
-                    for (const phonetic of entry.phonetics) {
-                        if (phonetic.audio && phonetic.audio.trim() !== '') {
-                            // Prefer US pronunciation (contains "-us." in URL)
-                            if (phonetic.audio.includes('-us.')) {
-                                usAudioUrl = phonetic.audio;
-                                break;
-                            } else if (!fallbackAudioUrl) {
-                                // Store first available as fallback
-                                fallbackAudioUrl = phonetic.audio;
-                            }
-                        }
-                    }
-                    if (usAudioUrl) break;
-                }
-            }
-
-            // Return US audio if available, otherwise use first available
-            return usAudioUrl || fallbackAudioUrl;
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('Dictionary API timeout');
-            } else {
-                console.log('Dictionary API failed:', error);
-            }
-            return null;
-        }
-    }
-
-    // Play word using dictionary API
-    async playWord(word, options = {}) {
-        const { volume = 1.0, cache = null } = options;
-
-        try {
-            const audioUrl = await this.getAudioUrl(word);
-            
-            if (audioUrl) {
-                // Cache the URL if cache is provided
-                if (cache) {
-                    cache.set(word, audioUrl);
-                }
-
-                const audio = new Audio(audioUrl);
-                audio.volume = volume;
-
-                return new Promise((resolve) => {
-                    audio.onended = () => resolve(true);
-                    audio.onerror = () => resolve(false);
-                    audio.play().catch(() => resolve(false));
-                });
-            }
-
-            return false;
-        } catch (error) {
-            console.error('Dictionary TTS playback failed:', error);
-            return false;
-        }
-    }
-
-    // Test if dictionary API is available
-    async isAvailable() {
-        try {
-            const audioUrl = await this.getAudioUrl('test');
-            return audioUrl !== null;
-        } catch (error) {
-            return false;
-        }
-    }
-}
-
-// Google TTS Provider
+// Google TTS Provider (via your existing /api/audio-cache backend endpoint)
 class GoogleTTSProvider {
     constructor() {
         this.name = 'google';
-        this.baseUrl = 'https://translate.google.com/translate_tts';
+        this.cacheTriggerApiUrl = '/api/audio-cache'; // Your existing endpoint for caching
+        this.staticAudioBasePath = '/audio_cache/';     // ASSUMPTION: Your server serves cached files from here
     }
 
-    // Generate Google TTS URL
-    getAudioUrl(word, language = 'en') {
-        const params = new URLSearchParams({
-            ie: 'UTF-8',
-            q: word,
-            tl: language,
-            client: 'tw-ob'
-        });
+    // This method is now primarily for triggering the cache and getting the filename.
+    // The actual playable URL is constructed from the response.
+    async playSentence(sentence, options = {}) {
+        const { language = 'en-US', audioManager } = options; // volume, rate, pitch are handled by AudioManager on the <audio> element
 
-        return `${this.baseUrl}?${params.toString()}`;
-    }
-
-    // Play word using Google TTS
-    async playWord(word, options = {}) {
-        const { volume = 1.0, language = 'en', cache = null } = options;
+        if (!audioManager) {
+            console.error('GoogleTTSProvider: AudioManager instance not provided in options.');
+            return false;
+        }
 
         try {
-            const audioUrl = this.getAudioUrl(word, language);
-            
-            // Cache the URL if cache is provided
-            if (cache) {
-                const cacheKey = `google_${word}`;
-                cache.set(cacheKey, audioUrl);
-            }
-
-            const audio = new Audio(audioUrl);
-            audio.volume = volume;
-            
-            // Set crossOrigin for CORS (may not always work)
-            audio.crossOrigin = 'anonymous';
-
-            return new Promise((resolve) => {
-                audio.onended = () => resolve(true);
-                audio.onerror = () => resolve(false);
-                audio.play().catch(() => resolve(false));
+            // Step 1: POST to your /api/audio-cache to ensure the audio is cached and get its filename.
+            const response = await fetch(this.cacheTriggerApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ word: sentence, lang: language }) // Send sentence as 'word'
             });
 
+            if (!response.ok) {
+                const errorData = await response.text();
+                console.error(`GoogleTTSProvider: Cache trigger API error (${response.status}):`, errorData);
+                // Attempt to parse error if JSON, otherwise use text
+                let detail = errorData;
+                try { detail = JSON.parse(errorData).error || errorData; } catch (e) {}
+                throw new Error(`Server failed to cache audio (${response.status}): ${detail}`);
+            }
+
+            const result = await response.json();
+
+            if (result && result.file) {
+                // Step 2: Construct the actual playable URL from the static base path and the returned filename.
+                const playableAudioUrl = this.staticAudioBasePath + result.file;
+                console.log(`GoogleTTSProvider: Cache success. Playing from: ${playableAudioUrl}`);
+                return await audioManager.playAudioElement(playableAudioUrl);
+            } else {
+                console.error('GoogleTTSProvider: Cache trigger API did not return a valid file.', result);
+                throw new Error('Server did not provide a valid audio file name after caching.');
+            }
+
         } catch (error) {
-            console.error('Google TTS playback failed:', error);
+            console.error('GoogleTTSProvider: playSentence failed:', error.message);
             return false;
         }
     }
 
-    // Test if Google TTS is available
-    async isAvailable() {
+    // The getAudioUrl method is no longer directly used by playSentence for playback URL construction
+    // but can be kept if useful for other purposes or direct URL generation if needed.
+    // For consistency, it might mirror the cache trigger logic if it were to be used for fetching.
+    // However, the primary mechanism is now playSentence making the POST.
+    getAudioUrl(sentence, language = 'en-US') {
+        // This method is not directly used for the audio element src with the new POST-then-GET approach.
+        // It could represent the POST endpoint URL if needed elsewhere.
+        return this.cacheTriggerApiUrl; 
+    }
+
+    async isAvailable(audioManager) {
         try {
-            return await this.playWord('test');
+            // Test by trying to cache a short test sentence
+            const response = await fetch(this.cacheTriggerApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word: 'test', lang: 'en-US' })
+            });
+             // Check if response status is OK (200 or 201 for cache success/already cached)
+            return response.ok || response.status === 201; 
         } catch (error) {
+            console.warn('GoogleTTSProvider isAvailable check failed (POST to /api/audio-cache):', error);
             return false;
         }
     }
@@ -169,211 +89,195 @@ class BrowserTTSProvider {
         this.isSupported = 'speechSynthesis' in window;
         this.voices = [];
         this.voicesLoaded = false;
+        this._loadVoicesPromise = null; // To avoid multiple concurrent loads
+        this.ensureVoicesLoaded(); // Start loading voices on instantiation
     }
 
-    // Load available voices
-    async loadVoices() {
-        if (!this.isSupported) {
-            return [];
-        }
+    async ensureVoicesLoaded() {
+        if (this.voicesLoaded || !this.isSupported) return;
+        if (this._loadVoicesPromise) return this._loadVoicesPromise; // Return existing promise if load in progress
 
-        return new Promise((resolve) => {
+        this._loadVoicesPromise = new Promise((resolve) => {
             const voices = speechSynthesis.getVoices();
-            
             if (voices.length > 0) {
                 this.voices = voices;
                 this.voicesLoaded = true;
-                resolve(voices);
+                resolve(this.voices);
             } else {
-                // Wait for voices to load
                 const onVoicesChanged = () => {
                     this.voices = speechSynthesis.getVoices();
                     this.voicesLoaded = true;
                     speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
                     resolve(this.voices);
                 };
-                
                 speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
-                
-                // Timeout after 5 seconds
+                // Timeout to avoid waiting indefinitely if event doesn't fire
                 setTimeout(() => {
                     speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
-                    this.voices = speechSynthesis.getVoices();
-                    this.voicesLoaded = true;
-                    resolve(this.voices);
-                }, 5000);
+                    if (!this.voicesLoaded) {
+                         this.voices = speechSynthesis.getVoices(); // Try one last time
+                         this.voicesLoaded = true; 
+                         resolve(this.voices);
+                    }
+                }, 2000); // 2 second timeout for voices loading
             }
         });
+        return this._loadVoicesPromise;
     }
 
-    // Get best voice for language
-    getBestVoice(language = 'en-US') {
-        if (!this.voicesLoaded) {
+    async getBestVoice(language = 'en-US') {
+        await this.ensureVoicesLoaded();
+        if (!this.voicesLoaded || this.voices.length === 0) {
             return null;
         }
-
-        // Look for exact match
-        let voice = this.voices.find(v => v.lang === language);
+        let voice = this.voices.find(v => v.lang === language && v.localService);
         if (voice) return voice;
-
-        // Look for language prefix match
+        voice = this.voices.find(v => v.lang === language);
+        if (voice) return voice;
         const langPrefix = language.split('-')[0];
+        voice = this.voices.find(v => v.lang.startsWith(langPrefix) && v.localService);
+        if (voice) return voice;
         voice = this.voices.find(v => v.lang.startsWith(langPrefix));
         if (voice) return voice;
-
-        // Look for default voice
+        voice = this.voices.find(v => v.default && v.localService);
+        if (voice) return voice;
         voice = this.voices.find(v => v.default);
         if (voice) return voice;
-
-        // Return first available voice
-        return this.voices.length > 0 ? this.voices[0] : null;
+        return this.voices.find(v => v.localService) || this.voices[0];
     }
 
-    // Play word using browser speech synthesis
-    async playWord(word, options = {}) {
-        const { 
-            volume = 1.0, 
-            rate = 0.6, 
-            pitch = 1.0, 
+    async playSentence(sentence, options = {}) {
+        const {
+            volume = 1.0,
+            rate = 0.8, // AudioManager default
+            pitch = 1.0, // AudioManager default
             language = 'en-US',
-            voice = null 
+            audioManager // Access AudioManager settings directly
         } = options;
 
         if (!this.isSupported) {
-            console.log('Speech synthesis not supported');
+            console.warn('Browser speech synthesis not supported.');
             return false;
         }
 
-        return new Promise(async (resolve) => {
+        await this.ensureVoicesLoaded();
+
+        return new Promise((resolve, reject) => {
             try {
-                // Stop any ongoing speech
-                speechSynthesis.cancel();
+                speechSynthesis.cancel(); // Stop any ongoing speech
 
-                // Load voices if not already loaded
-                if (!this.voicesLoaded) {
-                    await this.loadVoices();
-                }
-
-                const utterance = new SpeechSynthesisUtterance(word);
-                
-                // Configure speech settings
-                utterance.rate = rate;
-                utterance.pitch = pitch;
-                utterance.volume = volume;
+                const utterance = new SpeechSynthesisUtterance(sentence);
                 utterance.lang = language;
-
-                // Set voice if specified, otherwise use best available
-                if (voice) {
-                    utterance.voice = voice;
+                utterance.volume = audioManager ? audioManager.volume : volume;
+                utterance.rate = audioManager ? audioManager.rate : rate;
+                utterance.pitch = audioManager ? audioManager.pitch : pitch;
+                
+                const selectedVoice = this.getBestVoice(language);
+                if (selectedVoice) {
+                    utterance.voice = selectedVoice;
+                    console.log(`BrowserTTSProvider: Using voice: ${selectedVoice.name} (${selectedVoice.lang})`);
                 } else {
-                    const bestVoice = this.getBestVoice(language);
-                    if (bestVoice) {
-                        utterance.voice = bestVoice;
-                    }
+                    console.log(`BrowserTTSProvider: No specific voice found for ${language}, using default.`);
                 }
 
-                // Set up event handlers
-                utterance.onend = () => resolve(true);
-                utterance.onerror = (error) => {
-                    console.error('Speech synthesis error:', error);
-                    resolve(false);
+                let resolved = false;
+                utterance.onend = () => {
+                    if (!resolved) { resolved = true; resolve(true); }
+                };
+                utterance.onerror = (e) => {
+                    console.error('Browser speech synthesis error:', e);
+                    if (!resolved) { resolved = true; resolve(false); } // resolve(false) instead of reject to allow AudioManager to fallback
+                };
+                 utterance.onboundary = (event) => { // Safari might not fire onend if interrupted early by cancel()
+                    if (event.name === 'word') { 
+                        // useful for highlighting, not used here for resolving promise
+                    }
                 };
 
-                // Speak the word
+                // Safety timeout for onend event (e.g. if speech engine hangs)
+                const estimatedDuration = (sentence.length / 10) * 1000 * (1 / utterance.rate) + 1000; // Crude estimation
+                const playTimeout = Math.max(5000, estimatedDuration); // Min 5s
+
+                setTimeout(() => {
+                    if (!resolved) {
+                        console.warn(`BrowserTTSProvider: Speech synthesis 'onend' or 'onerror' event timeout after ${playTimeout}ms for: "${sentence.substring(0,30)}..."`);
+                        speechSynthesis.cancel(); // Attempt to stop it
+                        resolved = true; 
+                        resolve(false); // Indicate failure to allow fallback
+                    }
+                }, playTimeout);
+
                 speechSynthesis.speak(utterance);
 
             } catch (error) {
-                console.error('Browser TTS failed:', error);
-                resolve(false);
+                console.error('Error in BrowserTTSProvider.playSentence:', error);
+                if (!resolved) { resolved = true; resolve(false); }
             }
         });
     }
 
-    // Stop current speech
     stop() {
         if (this.isSupported) {
             speechSynthesis.cancel();
         }
     }
 
-    // Test if browser TTS is available
     async isAvailable() {
-        return this.isSupported;
+        if (!this.isSupported) return false;
+        await this.ensureVoicesLoaded();
+        return this.voices.length > 0;
     }
 
-    // Get available voices
     getVoices() {
-        return this.voices;
+        return this.voicesLoaded ? this.voices : [];
     }
 
-    // Get TTS status
     getStatus() {
-        if (!this.isSupported) {
-            return { supported: false };
-        }
-
         return {
-            supported: true,
-            speaking: speechSynthesis.speaking,
-            pending: speechSynthesis.pending,
-            paused: speechSynthesis.paused,
+            supported: this.isSupported,
             voicesLoaded: this.voicesLoaded,
             voiceCount: this.voices.length
         };
     }
 }
 
-// TTS Provider Factory
+// Factory to get providers (optional, but good for organization)
 class TTSProviderFactory {
     constructor() {
         this.providers = {
-            dictionary: new DictionaryTTSProvider(),
             google: new GoogleTTSProvider(),
             browser: new BrowserTTSProvider()
         };
     }
 
-    // Get provider by name
     getProvider(name) {
-        return this.providers[name] || null;
+        return this.providers[name];
     }
 
-    // Get all providers
     getAllProviders() {
         return this.providers;
     }
 
-    // Test all providers
-    async testAllProviders() {
+    // Example: Test all providers
+    async testAllProviders(audioManagerInstance) {
         const results = {};
-
-        for (const [name, provider] of Object.entries(this.providers)) {
-            try {
-                results[name] = {
-                    available: await provider.isAvailable(),
-                    name: provider.name
-                };
-            } catch (error) {
-                results[name] = {
-                    available: false,
-                    name: provider.name,
-                    error: error.message
-                };
+        for (const name in this.providers) {
+            const provider = this.providers[name];
+            if (provider && typeof provider.isAvailable === 'function') {
+                results[name] = await provider.isAvailable(audioManagerInstance);
+                console.log(`Provider ${name} available: ${results[name]}`);
+                if (results[name] && typeof provider.playSentence === 'function') {
+                    console.log(`Testing playback for ${name}...`);
+                    // Pass options including the audioManager instance
+                    await provider.playSentence('Hello from provider test.', { audioManager: audioManagerInstance });
+                }
             }
         }
-
         return results;
     }
 }
 
-// Create global instances
-const ttsProviderFactory = new TTSProviderFactory();
-const dictionaryTTS = ttsProviderFactory.getProvider('dictionary');
-const googleTTS = ttsProviderFactory.getProvider('google');
-const browserTTS = ttsProviderFactory.getProvider('browser');
-
-// Export for global access
-window.ttsProviderFactory = ttsProviderFactory;
-window.dictionaryTTS = dictionaryTTS;
-window.googleTTS = googleTTS;
-window.browserTTS = browserTTS;
+// Export instances or the factory
+export const googleTTSProvider = new GoogleTTSProvider();
+export const browserTTSProvider = new BrowserTTSProvider();
+export const ttsProviderFactory = new TTSProviderFactory();
