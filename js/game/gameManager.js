@@ -183,15 +183,7 @@ function showNextWordInternal() {
         return;
     }
 
-    // Audio: Play the full sentence.
-    if (onSpeakWordCallback && currentWordData['Example sentence']) {
-        onSpeakWordCallback(currentWordData['Example sentence']); 
-    } else if (onSpeakWordCallback && currentWordData.word) {
-        // Fallback to word if sentence somehow missing, though filtering should prevent this
-        console.warn("GameManager: Example sentence missing, attempting to speak word only for:", currentWordData.word);
-        onSpeakWordCallback(currentWordData.word);
-    }
-
+    // Prepare UI Data first
     const progress = gameState.getProgress();
     const uiData = {
         sentencePrefix: currentWordData.sentencePrefix,
@@ -202,10 +194,20 @@ function showNextWordInternal() {
         progressText: `Word ${progress.currentWordIndex + 1} of ${progress.totalWords}`,
     };
 
+    // 1. Display UI
     if (onShowNextWordUICallback) {
         onShowNextWordUICallback(uiData); // Calls gamePlayInterface.displayWordChallenge
     } else {
         console.error("onShowNextWordUICallback is not defined in gameManager.");
+    }
+
+    // 2. Audio: Play the full sentence (after UI is set up)
+    if (onSpeakWordCallback && currentWordData['Example sentence']) {
+        onSpeakWordCallback(currentWordData['Example sentence']); 
+    } else if (onSpeakWordCallback && currentWordData.word) {
+        // Fallback to word if sentence somehow missing, though filtering should prevent this
+        console.warn("GameManager: Example sentence missing, attempting to speak word only for:", currentWordData.word);
+        onSpeakWordCallback(currentWordData.word);
     }
     // Timer start is now handled within gamePlayInterface.js after audio completion (future) or immediately.
     // For now, gamePlayInterface.js calls startWordTimerFn(currentWordData.word.length).
