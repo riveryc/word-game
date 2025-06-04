@@ -149,22 +149,14 @@
             <div class="tts-selection">
                 <div class="tts-title">🔊 Audio Source:</div>
                 <fieldset id="audioSourceSelection" class="tts-options-fieldset" style="border: none; padding: 0; margin: 0;">
-                    <!-- Using a fieldset for semantic grouping of radio buttons -->
-                    <!-- Style override 'border: none;' is a suggestion; adapt styling as needed -->
-                    <div class="tts-options"> <!-- Reusing existing class for potential styling -->
-                        <div class="tts-option selected" data-method="online"> <!-- Added .selected class to default, data-method holds value -->
-                            <!-- <input type="radio" id="audioOnline" name="audioSource" value="online" checked class="tts-radio-input"> -->
-                            <!-- <label for="audioOnline" class="tts-label"> -->
+                    <div class="tts-options">
+                        <div class="tts-option selected" data-method="google">
                                 <div class="tts-name">Online</div>
-                                <div class="tts-description">Google / Dictionary</div>
-                            <!-- </label> -->
+                                <div class="tts-description">Google TTS (Recommended)</div>
                         </div>
-                        <div class="tts-option" data-method="offline">
-                            <!-- <input type="radio" id="audioOffline" name="audioSource" value="offline" class="tts-radio-input"> -->
-                            <!-- <label for="audioOffline" class="tts-label"> -->
+                        <div class="tts-option" data-method="browser">
                                 <div class="tts-name">Offline</div>
-                                <div class="tts-description">Native TTS</div>
-                            <!-- </label> -->
+                                <div class="tts-description">Native Browser TTS</div>
                         </div>
                     </div>
                 </fieldset>
@@ -224,12 +216,14 @@
         <!-- Game Interface -->
         <div id="game-interface" class="game-interface">
             <div class="progress" id="progress"></div>
-            <div class="word-display" id="word-display"></div>
+            <div class="word-display" id="word-display">
+                <!-- Sentence context with placeholder will appear here -->
+            </div>
             <div class="word-description" id="word-description"></div>
             <button class="repeat-button" id="repeat-button">🔊 Repeat</button>
-            <div>Fill in the missing letters and press <strong>Enter</strong> to check your answer</div>
+            <div>Type the missing word and press <strong>Enter</strong> to check your answer.</div>
             <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">
-                💡 Tips: Press <strong>Space bar</strong> to repeat the word • Press <strong>Enter</strong> to continue after each word
+                💡 Tips: Press <strong>Space bar</strong> to repeat the sentence • Press <strong>Enter</strong> to continue after each word.
             </div>
             <div class="feedback" id="feedback"></div>
         </div>

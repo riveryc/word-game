@@ -217,7 +217,27 @@ export class DataSourceManager {
                 throw new Error(ERROR_MESSAGES.LOADING_ERROR);
             }
             const csvText = await response.text();
-            return parseCSV(csvText);
+            let parsedData = parseCSV(csvText);
+
+            // Filter data for valid sentences
+            parsedData = parsedData.filter(item => {
+                const word = item.word;
+                const sentence = item['Example sentence']; // Accessing column with space
+
+                if (!word || typeof word !== 'string' || word.trim() === '') {
+                    return false; // Word is missing or empty
+                }
+                if (!sentence || typeof sentence !== 'string' || sentence.trim() === '') {
+                    return false; // Sentence is missing or empty
+                }
+                // Case-insensitive check for word within sentence
+                if (sentence.toLowerCase().includes(word.toLowerCase())) {
+                    return true; // Valid entry
+                }
+                return false; // Word not found in sentence
+            });
+
+            return parsedData;
         } catch (error) {
             throw new Error(`${ERROR_MESSAGES.LOADING_ERROR}: ${error.message}`);
         }

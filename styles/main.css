@@ -76,6 +76,8 @@ h1 {
 /* Game interface */
 .game-interface {
     display: none;
+    padding-top: 20px;
+    padding-bottom: 20px;
 }
 
 .word-display {
@@ -184,4 +186,142 @@ h1 {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-5px); }
     75% { transform: translateX(5px); }
+}
+
+/* Sentence Feature Styles */
+.sentence-context-display {
+    margin-bottom: 15px; /* Space between context and input */
+    font-size: 1.4em; /* Slightly larger for context */
+    text-align: center;
+    line-height: 1.6;
+}
+
+.sentence-placeholder {
+    font-weight: bold;
+    color: #777;
+    padding: 0 0.2em;
+}
+
+.missing-word-input-container {
+    margin-bottom: 20px; /* Space below the input */
+    text-align: center;
+}
+
+.missing-word-input-field {
+    font-size: 1.8em; /* Bigger font for the input */
+    padding: 10px 15px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    text-align: center;
+    width: 60%; /* Adjust as needed */
+    max-width: 400px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.missing-word-input-field:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+/* Feedback styles for letter comparison */
+.letter-correct {
+    color: #28a745; /* Green */
+    font-weight: bold;
+}
+
+.letter-incorrect {
+    color: #dc3545; /* Red */
+    font-weight: bold;
+    text-decoration: underline;
+    text-decoration-color: #dc3545;
+    text-decoration-thickness: 2px;
+}
+
+.user-answer-display {
+    font-style: italic;
+    color: #555;
+}
+
+/* Ensure word-display (now sentence-context-display) uses its ID if specific styles were tied to #word-display */
+#word-display {
+    /* Existing styles for #word-display might be here or in other files */
+    /* These will now apply to the sentence context. */
+    /* Example: if it had text-align, font-size, etc. */
+}
+
+/* Styles for Sentence Feature elements */
+.sentence-prefix,
+.sentence-suffix {
+    display: block; /* Ensure prefix and suffix are on their own lines */
+    text-align: center; /* Center the prefix/suffix text */
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 1.2em; /* Make context font a bit larger */
+}
+
+.word-guess-area {
+    display: flex; /* Align letter inputs/spans in a row */
+    justify-content: center; /* Center the row */
+    margin-top: 10px;
+    margin-bottom: 10px;
+    gap: 2px; /* Minimal gap, .inline-input has its own margin */
+}
+
+/* Styles for sentence display (placeholders etc from previous iteration - can be removed or adapted) */
+/* These .sentence-context-display and .sentence-placeholder might conflict or be redundant now.
+   Reviewing and simplifying is a good idea. For now, keeping them but they might not be used directly by the JS anymore.
+*/
+.sentence-context-display {
+    font-size: 1.2em;
+    margin-bottom: 15px;
+    color: #555;
+    text-align: center;
+}
+
+.sentence-placeholder {
+    font-weight: bold;
+    color: #007bff; /* Or your preferred highlight color */
+    padding: 0 5px;
+    border-bottom: 2px solid #007bff;
+    margin: 0 5px;
+}
+
+/* Remove or comment out styles for the single missing word input field if no longer needed */
+/*
+.missing-word-input-container {
+    margin-top: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.missing-word-input-field {
+    padding: 10px 15px;
+    font-size: 1.5em; 
+    border: 2px solid #ccc;
+    border-radius: 5px;
+    text-align: center;
+    width: 80%;
+    max-width: 400px;
+}
+
+.missing-word-input-field:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
+    outline: none;
+}
+*/
+
+/* Add new styles for .input-correct and .input-incorrect for the .inline-input fields */
+.inline-input.input-correct {
+    background-color: #d4edda; /* Light green */
+    color: #155724; /* Dark green text */
+    border-bottom-color: #28a745; /* Green underline */
+}
+
+.inline-input.input-incorrect {
+    background-color: #f8d7da; /* Light red */
+    color: #721c24; /* Dark red text */
+    border-bottom-color: #dc3545; /* Red underline */
 }

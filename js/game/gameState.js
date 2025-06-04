@@ -2,12 +2,18 @@
 
 import { GAME_CONFIG, RESULT_TYPES, TTS_METHODS } from '../app/config.js';
 import { shuffleArray } from '../utils/helpers.js';
+import { WordGenerator } from './wordGenerator.js';
+
+let wordObjectIdCounter = 0; // Module-level counter for unique word object IDs for debugging
 
 /**
  * Game state manager class
  */
 export class GameState {
     constructor() {
+        this.instanceId = `gs_${Math.random().toString(36).substring(2, 9)}`;
+        console.log(`[GameState constructor] Instance ID: ${this.instanceId} created.`);
+        this.wordGenerator = new WordGenerator();
         this.reset();
     }
 
@@ -15,6 +21,7 @@ export class GameState {
      * Reset game state to initial values
      */
     reset() {
+        console.log(`[GameState reset] Instance ID: ${this.instanceId}`);
         // Game configuration
         this.level = GAME_CONFIG.DEFAULT_LEVEL;
         this.timeoutPerLetter = GAME_CONFIG.DEFAULT_TIMEOUT_PER_LETTER;
@@ -54,6 +61,7 @@ export class GameState {
      * @param {Object} settings - Game settings
      */
     initialize(wordData, settings = {}) {
+        console.log(`[GameState initialize] Instance ID: ${this.instanceId}`);
         this.reset();
         
         // Apply settings
@@ -72,25 +80,68 @@ export class GameState {
      * Prepare words for the game (shuffle and limit)
      */
     prepareGameWords() {
-        // Shuffle all words
+        console.log(`[GameState prepareGameWords] Instance ID: ${this.instanceId}`);
         const shuffledWords = shuffleArray([...this.allWords]);
+        const selectedWords = shuffledWords.slice(0, this.wordCount);
+        const currentLevelConfig = GAME_CONFIG.LEVELS[this.level];
+        const missingPercentage = currentLevelConfig ? currentLevelConfig.missingPercentage : 100;
+
+        this.gameWords = selectedWords.map((wordObj, index) => {
+            wordObj._debug_id = `word_${wordObjectIdCounter++}`; // Assign a debug ID
+            console.log(`[GameState prepareGameWords] Processing ${wordObj._debug_id}`);
+
+            if (wordObj && typeof wordObj.word === 'string' && wordObj.word.length > 0) {
+                const targetWord = wordObj.word;
+                try {
+                    const puzzle = this.wordGenerator.createWordPuzzle(targetWord.toLowerCase(), missingPercentage);
+                    wordObj.displayableWordParts = puzzle && puzzle.puzzleLetters ? puzzle.puzzleLetters : [];
+                    console.log(`[GameState prepareGameWords] ${wordObj._debug_id} displayableWordParts set, length: ${wordObj.displayableWordParts.length}`);
+                } catch (e) {
+                    console.error(`[GameState prepareGameWords] Error creating puzzle for ${wordObj._debug_id} ("${targetWord}"):`, e);
+                    wordObj.displayableWordParts = [];
+                }
+
+                if (typeof wordObj['Example sentence'] === 'string') {
+                    const sentence = wordObj['Example sentence'];
+                    const lowerSentence = sentence.toLowerCase();
+                    const lowerTargetWord = targetWord.toLowerCase(); 
+                    const startIndex = lowerSentence.indexOf(lowerTargetWord);
+                    if (startIndex !== -1) {
+                        wordObj.sentencePrefix = sentence.substring(0, startIndex);
+                        wordObj.sentenceSuffix = sentence.substring(startIndex + targetWord.length);
+                    } else {
+                        wordObj.sentencePrefix = sentence; 
+                        wordObj.sentenceSuffix = '';
+                    }
+                } else {
+                    wordObj.sentencePrefix = '';
+                    wordObj.sentenceSuffix = '';
+                }
+            } else {
+                if(wordObj) wordObj.displayableWordParts = []; // Fallback for malformed
+            }
+            return wordObj;
+        });
         
-        // Take the requested number of words
-        this.gameWords = shuffledWords.slice(0, this.wordCount);
-        
-        // Reset current word index
         this.currentWordIndex = 0;
-        this.currentWord = this.gameWords[0] || null;
+        this.currentWord = this.gameWords.length > 0 ? this.gameWords[0] : null;
+        if (this.currentWord) {
+            console.log(`[GameState prepareGameWords] Finished. currentWord is ${this.currentWord._debug_id}, hasOwnProperty('displayableWordParts'): ${this.currentWord.hasOwnProperty('displayableWordParts')}`);
+        }
     }
 
     /**
      * Start the game
      */
     startGame() {
+        console.log(`[GameState startGame] Instance ID: ${this.instanceId}`);
         this.isGameActive = true;
         this.startTime = Date.now();
         this.currentWordIndex = 0;
         this.currentWord = this.gameWords[0] || null;
+        if (this.currentWord) {
+            console.log(`[GameState startGame] currentWord is ${this.currentWord._debug_id}, hasOwnProperty('displayableWordParts'): ${this.currentWord.hasOwnProperty('displayableWordParts')}`);
+        }
         this.startCurrentWord();
     }
 
@@ -132,17 +183,24 @@ export class GameState {
      * @returns {boolean} - True if there is a next word, false if game is complete
      */
     nextWord() {
+        console.log(`[gameState.nextWord] Called. Current index: ${this.currentWordIndex}, Total game words: ${this.gameWords.length}`);
         this.endCurrentWord();
         
+        const oldIndex = this.currentWordIndex;
         this.currentWordIndex++;
+        console.log(`[gameState.nextWord] Index incremented from ${oldIndex} to ${this.currentWordIndex}`);
         
         if (this.currentWordIndex >= this.gameWords.length) {
+            console.log("[gameState.nextWord] End of game words reached.");
             this.endGame();
+            console.log("[gameState.nextWord] Returning false (no next word).");
             return false;
         }
         
         this.currentWord = this.gameWords[this.currentWordIndex];
+        console.log("[gameState.nextWord] New currentWord set:", this.currentWord ? this.currentWord._debug_id : "null", this.currentWord);
         this.startCurrentWord();
+        console.log("[gameState.nextWord] Returning true (next word available).");
         return true;
     }
 
@@ -232,6 +290,14 @@ export class GameState {
      * @returns {Object|null} - Current word object or null
      */
     getCurrentWord() {
+        console.log(`[GameState getCurrentWord] Instance ID: ${this.instanceId}.`);
+        if (this.currentWord) {
+            console.log(`[GameState getCurrentWord] currentWord is ${this.currentWord._debug_id}. About to return this.currentWord.`);
+            console.log("[GameState getCurrentWord] this.currentWord.hasOwnProperty('displayableWordParts'):", this.currentWord.hasOwnProperty('displayableWordParts'));
+            // console.log("[GameState getCurrentWord] this.currentWord.displayableWordParts value:", this.currentWord.displayableWordParts); // Keep this commented for now
+        } else {
+            console.log("[GameState getCurrentWord] this.currentWord is null/undefined.");
+        }
         return this.currentWord;
     }
 

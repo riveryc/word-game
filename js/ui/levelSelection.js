@@ -3,6 +3,7 @@
 import { GAME_CONFIG, ELEMENTS, CSS_CLASSES, TTS_METHODS } from '../app/config.js';
 import { getElementById, addClass, removeClass, setValue, getValue } from '../utils/helpers.js';
 import { validateTimeoutInput, validateWordCountInput } from '../utils/validation.js';
+import { audioManager } from '../audio/audioManager.js'; // Import AudioManager
 
 /**
  * Level selection manager class
@@ -12,7 +13,7 @@ export class LevelSelectionManager {
         this.selectedLevel = GAME_CONFIG.DEFAULT_LEVEL;
         this.timeoutPerLetter = GAME_CONFIG.DEFAULT_TIMEOUT_PER_LETTER;
         this.showTimer = false;
-        this.selectedTTSMethod = TTS_METHODS.GOOGLE;
+        this.selectedTTSMethod = TTS_METHODS.GOOGLE; // Default to Google TTS
         this.wordCount = GAME_CONFIG.DEFAULT_WORD_COUNT;
         this.totalAvailableWords = 0;
         this.onSettingsChangeCallback = null;
@@ -25,6 +26,8 @@ export class LevelSelectionManager {
     init() {
         this.setupEventListeners();
         this.updateTimeoutStatus();
+        this.updateTTSSelection(); // Ensure initial UI matches the default
+        audioManager.setMethod(this.selectedTTSMethod); // Set initial method in AudioManager
     }
 
     /**
@@ -79,8 +82,19 @@ export class LevelSelectionManager {
      * Set up TTS selection event listeners
      */
     setupTTSSelection() {
-        // TTS options are handled by onclick attributes in HTML
-        // This method can be used for additional setup if needed
+        const ttsOptionElements = document.querySelectorAll('.tts-option');
+        if (ttsOptionElements && ttsOptionElements.length > 0) {
+            ttsOptionElements.forEach(option => {
+                option.addEventListener('click', () => {
+                    const method = option.dataset.method;
+                    if (method) {
+                        this.selectTTSMethod(method);
+                    }
+                });
+            });
+        } else {
+            console.warn('[LevelSelectionManager] TTS option elements not found for event listener setup.');
+        }
     }
 
     /**
@@ -189,33 +203,37 @@ export class LevelSelectionManager {
 
     /**
      * Select TTS method
-     * @param {string} method - TTS method (dictionary, google, browser)
+     * @param {string} method - TTS method ('google' or 'browser')
      */
     selectTTSMethod(method) {
+        // TTS_METHODS should now only contain 'google' and 'browser' as values
         if (!Object.values(TTS_METHODS).includes(method)) {
-            console.warn(`Invalid TTS method: ${method}`);
+            console.warn(`[LevelSelectionManager] Invalid TTS method: ${method}. Allowed: ${Object.values(TTS_METHODS).join(', ')}`);
             return;
         }
 
         this.selectedTTSMethod = method;
+        audioManager.setMethod(method); // Update AudioManager
         this.updateTTSSelection();
         this.notifySettingsChange();
+        console.log(`[LevelSelectionManager] TTS Method set to: ${method}`);
     }
 
     /**
      * Update TTS selection UI
      */
     updateTTSSelection() {
-        // Remove selected class from all TTS options
         const ttsOptions = document.querySelectorAll('.tts-option');
         ttsOptions.forEach(option => {
             removeClass(option, CSS_CLASSES.SELECTED);
         });
 
-        // Add selected class to current TTS method
-        const selectedOption = document.querySelector(`[data-tts="${this.selectedTTSMethod}"]`);
+        // data-method attribute in HTML is now 'google' or 'browser'
+        const selectedOption = document.querySelector(`[data-method="${this.selectedTTSMethod}"]`);
         if (selectedOption) {
             addClass(selectedOption, CSS_CLASSES.SELECTED);
+        } else {
+            console.warn(`[LevelSelectionManager] Could not find TTS option UI element for method: ${this.selectedTTSMethod}`);
         }
     }
 
@@ -252,38 +270,53 @@ export class LevelSelectionManager {
             wordCountInput.value = this.wordCount.toString();
         }
 
+        this.updateWordCountDisplay(); // Ensure this is called
         this.notifySettingsChange();
     }
 
     /**
-     * Set total available words for word count validation
-     * @param {number} totalWords - Total available words
+     * Update word count display information
      */
-    setTotalAvailableWords(totalWords) {
-        this.totalAvailableWords = totalWords;
-        
-        // Update word count input max value
-        const wordCountInput = getElementById(ELEMENTS.WORD_COUNT_INPUT);
-        if (wordCountInput) {
-            wordCountInput.max = totalWords.toString();
-            
-            // Adjust current value if it exceeds available words
-            if (this.wordCount > totalWords) {
-                this.wordCount = totalWords;
-                wordCountInput.value = totalWords.toString();
-                this.notifySettingsChange();
+    updateWordCountDisplay() {
+        const wordCountInfo = getElementById(ELEMENTS.WORD_COUNT_INFO);
+        if (wordCountInfo) {
+            const totalWordsSpan = getElementById(ELEMENTS.TOTAL_WORDS_COUNT);
+            if (totalWordsSpan) {
+                totalWordsSpan.textContent = this.totalAvailableWords.toString();
             }
+            // Additional logic for displaying word count info if needed
         }
     }
 
     /**
-     * Get current settings
-     * @returns {Object} - Current settings object
+     * Set total available words (called after data loading)
+     * @param {number} totalWords - Total number of words available for selection
+     */
+    setTotalAvailableWords(totalWords) {
+        this.totalAvailableWords = totalWords;
+        const wordCountInput = getElementById(ELEMENTS.WORD_COUNT_INPUT);
+        if (wordCountInput) {
+            wordCountInput.max = totalWords > 0 ? totalWords.toString() : '1'; // Prevent 0 or negative max
+            if (this.wordCount > totalWords && totalWords > 0) {
+                this.wordCount = totalWords;
+                setValue(wordCountInput, this.wordCount.toString());
+            } else if (totalWords === 0 && this.wordCount > 0) {
+                this.wordCount = 0;
+                setValue(wordCountInput, '0');
+            }
+        }
+        this.updateWordCountDisplay();
+        this.validateAndUpdateWordCount(); // Re-validate after total changes
+    }
+
+    /**
+     * Get current level selection settings
+     * @returns {object} Current settings
      */
     getSettings() {
         return {
             level: this.selectedLevel,
-            timeoutPerLetter: this.timeoutPerLetter,
+            timeout: this.timeoutPerLetter,
             showTimer: this.showTimer,
             ttsMethod: this.selectedTTSMethod,
             wordCount: this.wordCount
@@ -291,108 +324,89 @@ export class LevelSelectionManager {
     }
 
     /**
-     * Apply settings to UI
-     * @param {Object} settings - Settings object
+     * Apply settings to the level selection manager
+     * @param {object} settings - Settings object to apply
      */
     applySettings(settings) {
+        if (!settings) return;
+
         if (settings.level !== undefined) {
             this.selectLevel(settings.level);
         }
-
-        if (settings.timeoutPerLetter !== undefined) {
-            this.timeoutPerLetter = settings.timeoutPerLetter;
+        if (settings.timeout !== undefined) {
+            this.timeoutPerLetter = settings.timeout;
             const timeoutInput = getElementById(ELEMENTS.TIMEOUT_INPUT);
-            if (timeoutInput) {
-                timeoutInput.value = settings.timeoutPerLetter.toString();
-            }
+            if (timeoutInput) setValue(timeoutInput, this.timeoutPerLetter.toString());
             this.updateTimeoutStatus();
         }
-
         if (settings.showTimer !== undefined) {
             this.showTimer = settings.showTimer;
             const timerCheckbox = getElementById(ELEMENTS.SHOW_TIMER_CHECKBOX);
-            if (timerCheckbox) {
-                timerCheckbox.checked = settings.showTimer;
-            }
+            if (timerCheckbox) timerCheckbox.checked = this.showTimer;
         }
-
         if (settings.ttsMethod !== undefined) {
             this.selectTTSMethod(settings.ttsMethod);
         }
-
         if (settings.wordCount !== undefined) {
             this.wordCount = settings.wordCount;
             const wordCountInput = getElementById(ELEMENTS.WORD_COUNT_INPUT);
-            if (wordCountInput) {
-                wordCountInput.value = settings.wordCount.toString();
-            }
+            if (wordCountInput) setValue(wordCountInput, this.wordCount.toString());
+            this.validateAndUpdateWordCount();
         }
-
         this.notifySettingsChange();
     }
 
     /**
-     * Reset settings to defaults
+     * Reset all settings to default values
      */
     resetToDefaults() {
         this.applySettings({
             level: GAME_CONFIG.DEFAULT_LEVEL,
-            timeoutPerLetter: GAME_CONFIG.DEFAULT_TIMEOUT_PER_LETTER,
-            showTimer: false,
-            ttsMethod: TTS_METHODS.GOOGLE,
-            wordCount: Math.min(GAME_CONFIG.DEFAULT_WORD_COUNT, this.totalAvailableWords)
+            timeout: GAME_CONFIG.DEFAULT_TIMEOUT_PER_LETTER,
+            showTimer: false, // Assuming default is false for showing timer
+            ttsMethod: TTS_METHODS.GOOGLE, // Default TTS method
+            wordCount: GAME_CONFIG.DEFAULT_WORD_COUNT
         });
+        // Ensure UI for word count input is also reset if it has a different default
+        const wordCountInput = getElementById(ELEMENTS.WORD_COUNT_INPUT);
+        if (wordCountInput) setValue(wordCountInput, GAME_CONFIG.DEFAULT_WORD_COUNT.toString());
+        this.validateAndUpdateWordCount();
     }
 
     /**
-     * Validate all current settings
-     * @returns {Object} - Validation result
+     * Validate current settings
+     * @returns {boolean} True if settings are valid, false otherwise
      */
     validateSettings() {
-        const result = {
-            isValid: true,
-            errors: []
-        };
+        const timeoutValidation = validateTimeoutInput(this.timeoutPerLetter.toString());
+        const wordCountValidation = validateWordCountInput(this.wordCount.toString(), this.totalAvailableWords);
+        
+        const isValid = timeoutValidation.isValid && 
+                        wordCountValidation.isValid &&
+                        GAME_CONFIG.LEVELS[this.selectedLevel] &&
+                        Object.values(TTS_METHODS).includes(this.selectedTTSMethod);
 
-        // Validate level
-        if (!GAME_CONFIG.LEVELS[this.selectedLevel]) {
-            result.isValid = false;
-            result.errors.push('Invalid difficulty level selected');
+        if (!isValid) {
+            console.warn("[LevelSelectionManager] Settings validation failed:", {
+                timeout: timeoutValidation,
+                wordCount: wordCountValidation,
+                level: this.selectedLevel,
+                tts: this.selectedTTSMethod
+            });
         }
-
-        // Validate timeout
-        const timeoutValidation = validateTimeoutInput(this.timeoutPerLetter);
-        if (!timeoutValidation.isValid) {
-            result.isValid = false;
-            result.errors.push(...timeoutValidation.errors);
-        }
-
-        // Validate TTS method
-        if (!Object.values(TTS_METHODS).includes(this.selectedTTSMethod)) {
-            result.isValid = false;
-            result.errors.push('Invalid TTS method selected');
-        }
-
-        // Validate word count
-        const wordCountValidation = validateWordCountInput(this.wordCount, this.totalAvailableWords);
-        if (!wordCountValidation.isValid) {
-            result.isValid = false;
-            result.errors.push(...wordCountValidation.errors);
-        }
-
-        return result;
+        return isValid;
     }
 
     /**
-     * Set callback for settings changes
-     * @param {Function} callback - Callback function
+     * Set callback function for settings change
+     * @param {function} callback - Callback function
      */
     setOnSettingsChangeCallback(callback) {
         this.onSettingsChangeCallback = callback;
     }
 
     /**
-     * Notify about settings change
+     * Notify subscribers about settings change
      */
     notifySettingsChange() {
         if (this.onSettingsChangeCallback) {
@@ -401,29 +415,21 @@ export class LevelSelectionManager {
     }
 
     /**
-     * Get level configuration
-     * @param {number} level - Level number
-     * @returns {Object|null} - Level configuration or null
+     * Get level configuration based on selected level
+     * @param {number} [level=this.selectedLevel] - Level number
+     * @returns {object|null} Level configuration object or null if invalid
      */
     getLevelConfig(level = this.selectedLevel) {
         return GAME_CONFIG.LEVELS[level] || null;
     }
 
     /**
-     * Get settings summary for display
-     * @returns {string} - Settings summary text
+     * Get a summary of current settings for display or logging
+     * @returns {string}
      */
     getSettingsSummary() {
-        const levelConfig = this.getLevelConfig();
-        const levelName = levelConfig ? levelConfig.name : 'Unknown';
-        
-        let summary = `Level: ${levelName} (${this.selectedLevel})\n`;
-        summary += `Timeout: ${this.timeoutPerLetter > 0 ? this.timeoutPerLetter + 's per letter' : 'No limit'}\n`;
-        summary += `Timer: ${this.showTimer ? 'Enabled' : 'Disabled'}\n`;
-        summary += `Audio: ${this.selectedTTSMethod}\n`;
-        summary += `Words: ${this.wordCount}`;
-        
-        return summary;
+        const levelName = this.getLevelConfig() ? this.getLevelConfig().name : 'Unknown';
+        return `Level: ${levelName}, Words: ${this.wordCount}, Timeout: ${this.timeoutPerLetter > 0 ? this.timeoutPerLetter + 's/letter' : 'None'}, TTS: ${this.selectedTTSMethod}, Show Timer: ${this.showTimer}`;
     }
 }
 

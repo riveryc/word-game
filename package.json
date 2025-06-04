@@ -5,7 +5,7 @@
   "main": "server.py", 
   "scripts": {
     "start": "python server.py", 
-    "test": "vitest",
+    "test": "vitest run",
     "test:watch": "vitest --watch",
     "coverage": "vitest run --coverage",
     "docker:build": "docker build -t word-game-app .",

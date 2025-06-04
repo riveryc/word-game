@@ -145,9 +145,8 @@ export const DATA_SOURCES = {
 
 // TTS methods
 export const TTS_METHODS = {
-    DICTIONARY: 'dictionary',
-    GOOGLE: 'google',
-    BROWSER: 'browser'
+    GOOGLE: 'google',    // For Google TTS (via backend proxy)
+    BROWSER: 'browser'   // For native browser speech synthesis
 };
 
 // Game result types
