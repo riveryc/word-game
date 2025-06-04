@@ -180,14 +180,22 @@ function handleInputKeydown(event) {
             checkAnswerInternal();
         }
     } else if (event.key === 'Backspace') {
-        if (!event.target.value && index >= 0) { // Check index >= 0 for safety
+        const currentInput = event.target;
+        if (currentInput.value === '') { // If the current input field is empty
             const prevEditableIndex = findPreviousEditableInputIndex(index);
             if (prevEditableIndex !== -1) {
-                event.preventDefault();
-                focusInputElement(prevEditableIndex);
+                event.preventDefault(); // Prevent default browser action (e.g., page back)
+                const prevInputToClear = inputElements[prevEditableIndex];
+                focusInputElement(prevEditableIndex); // Move focus to the previous editable input
+                prevInputToClear.value = '';         // Clear the character in that input
             }
-            // If no previous editable (e.g., at the first editable input), default backspace behavior on empty field, or nothing.
-        } 
+            // If no previous editable input, do nothing further (e.g., at the start).
+        } else {
+            // If the current input field has a character, let the default Backspace behavior clear it.
+            // No event.preventDefault() here, so the character in the current field gets deleted.
+            // The cursor will remain in the current field, now empty.
+            // A subsequent Backspace will then trigger the (currentInput.value === '') block above.
+        }
     } else if (event.key === 'ArrowLeft') {
         const prevEditableIndex = findPreviousEditableInputIndex(index);
         if (prevEditableIndex !== -1) {
