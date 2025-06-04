@@ -123,8 +123,16 @@ function handleInputFocus(event) {
 
 function handleInlineInput(event) {
     const input = event.target;
-    const value = input.value.toLowerCase();
-    if (value) {
+    const originalValue = input.value;
+    const lowerCaseValue = originalValue.toLowerCase();
+
+    // Visually update the input field to lowercase if it changed
+    if (originalValue !== lowerCaseValue) {
+        input.value = lowerCaseValue;
+    }
+
+    // Auto-advance logic (uses the lowercased value for the check)
+    if (lowerCaseValue) { 
         const allInputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
         const currentIndex = allInputs.indexOf(input);
         if (currentIndex < allInputs.length - 1) {
@@ -357,4 +365,11 @@ export function initializeGamePlayInterface(callbacks) {
     feedbackDiv = document.getElementById('feedback');
 }
 
-export { displayWordChallenge }; 
+// Export for testing or if other modules need them (though displayWordChallenge, etc. are typically called internally or via main controller)
+export {
+    displayWordChallenge, // Already used by core.js
+    checkAnswerInternal,  // Already used by core.js
+    handleInlineInput,    // For testing
+    handleInputFocus,     // Potentially for testing or more complex focus logic if needed
+    handleInlineKeydown   // Potentially for testing keydown logic
+}; 
