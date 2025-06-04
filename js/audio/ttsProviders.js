@@ -90,37 +90,72 @@ class BrowserTTSProvider {
         this.voices = [];
         this.voicesLoaded = false;
         this._loadVoicesPromise = null; // To avoid multiple concurrent loads
-        this.ensureVoicesLoaded(); // Start loading voices on instantiation
+        this.selectedVoice = null; // Initialize selectedVoice
+        this.ensureVoicesLoaded().then(voices => { // Start loading voices on instantiation
+            if (voices && voices.length > 0) {
+                // Attempt to set a default preferred voice once loaded
+                this.getBestVoice('en-US').then(voice => { // Example: prefer 'en-US'
+                    if (voice) this.selectedVoice = voice;
+                });
+            }
+        }).catch(err => console.warn("BrowserTTSProvider: Error during initial voice loading:", err));
     }
 
     async ensureVoicesLoaded() {
-        if (this.voicesLoaded || !this.isSupported) return;
+        if (this.voicesLoaded || !this.isSupported) return this.voices; // Return existing voices if already loaded
         if (this._loadVoicesPromise) return this._loadVoicesPromise; // Return existing promise if load in progress
 
-        this._loadVoicesPromise = new Promise((resolve) => {
-            const voices = speechSynthesis.getVoices();
-            if (voices.length > 0) {
-                this.voices = voices;
-                this.voicesLoaded = true;
-                resolve(this.voices);
-            } else {
-                const onVoicesChanged = () => {
-                    this.voices = speechSynthesis.getVoices();
+        this._loadVoicesPromise = new Promise((resolve, reject) => {
+            const loadAttempts = 0;
+            const tryLoad = () => {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    this.voices = voices;
                     this.voicesLoaded = true;
-                    speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+                    console.log("BrowserTTSProvider: Voices loaded directly:", this.voices.length);
                     resolve(this.voices);
-                };
-                speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
-                // Timeout to avoid waiting indefinitely if event doesn't fire
-                setTimeout(() => {
-                    speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
-                    if (!this.voicesLoaded) {
-                         this.voices = speechSynthesis.getVoices(); // Try one last time
-                         this.voicesLoaded = true; 
-                         resolve(this.voices);
-                    }
-                }, 2000); // 2 second timeout for voices loading
-            }
+                } else if (speechSynthesis.onvoiceschanged !== undefined) {
+                    const onVoicesChanged = () => {
+                        speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+                        this.voices = speechSynthesis.getVoices();
+                        this.voicesLoaded = true;
+                        console.log("BrowserTTSProvider: Voices loaded via onvoiceschanged event:", this.voices.length);
+                        resolve(this.voices);
+                    };
+                    speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+                    // Timeout for onvoiceschanged
+                    setTimeout(() => {
+                        speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+                        if (!this.voicesLoaded) {
+                            this.voices = speechSynthesis.getVoices(); // Final attempt
+                            this.voicesLoaded = true;
+                             console.log("BrowserTTSProvider: Voices loaded via onvoiceschanged timeout fallback:", this.voices.length);
+                            resolve(this.voices);
+                        }
+                    }, 1500); // Shorter timeout, e.g., 1.5 seconds
+                } else {
+                    // Fallback for browsers that don't support onvoiceschanged or if it fails
+                    // Try a few times with a delay
+                    let attemptCount = 0;
+                    const intervalId = setInterval(() => {
+                        const currentVoices = speechSynthesis.getVoices();
+                        if (currentVoices.length > 0) {
+                            clearInterval(intervalId);
+                            this.voices = currentVoices;
+                            this.voicesLoaded = true;
+                            console.log("BrowserTTSProvider: Voices loaded via interval polling:", this.voices.length);
+                            resolve(this.voices);
+                        } else if (attemptCount >= 5) { // Max 5 attempts (e.g., 2.5 seconds)
+                            clearInterval(intervalId);
+                            console.warn("BrowserTTSProvider: Failed to load voices after multiple attempts.");
+                            this.voicesLoaded = true; // Mark as loaded to prevent further attempts
+                            resolve([]); // Resolve with empty array
+                        }
+                        attemptCount++;
+                    }, 500);
+                }
+            };
+            tryLoad();
         });
         return this._loadVoicesPromise;
     }
@@ -128,43 +163,63 @@ class BrowserTTSProvider {
     async getBestVoice(language = 'en-US') {
         await this.ensureVoicesLoaded();
         if (!this.voicesLoaded || this.voices.length === 0) {
+            console.warn("BrowserTTSProvider: No voices loaded when trying to get best voice.");
             return null;
         }
+        // Prioritize voices that match the full language tag and are local
         let voice = this.voices.find(v => v.lang === language && v.localService);
         if (voice) return voice;
+        // Fallback to any voice matching the full language tag
         voice = this.voices.find(v => v.lang === language);
         if (voice) return voice;
+        
+        // Fallback to voices matching the primary language (e.g., 'en' from 'en-US')
         const langPrefix = language.split('-')[0];
         voice = this.voices.find(v => v.lang.startsWith(langPrefix) && v.localService);
         if (voice) return voice;
         voice = this.voices.find(v => v.lang.startsWith(langPrefix));
         if (voice) return voice;
+
+        // Fallback to a default local voice if available
         voice = this.voices.find(v => v.default && v.localService);
         if (voice) return voice;
+        // Fallback to any default voice
         voice = this.voices.find(v => v.default);
         if (voice) return voice;
-        return this.voices.find(v => v.localService) || this.voices[0];
+        
+        // Fallback to the first local voice available
+        voice = this.voices.find(v => v.localService);
+        if(voice) return voice;
+
+        // Absolute fallback to the very first voice in the list
+        return this.voices.length > 0 ? this.voices[0] : null;
     }
 
     async playSentence(sentence, options = {}) {
         const {
             volume = 1.0,
-            rate = 0.8, // AudioManager default
-            pitch = 1.0, // AudioManager default
+            rate = 0.8, 
+            pitch = 1.0,
             language = 'en-US',
-            audioManager // Access AudioManager settings directly
+            audioManager 
         } = options;
 
         if (!this.isSupported) {
-            console.warn('Browser speech synthesis not supported.');
+            console.warn('BrowserTTSProvider: Speech synthesis not supported.');
             return false;
         }
 
-        await this.ensureVoicesLoaded();
+        await this.ensureVoicesLoaded(); // Ensure voices are loaded before proceeding
 
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => { // Executor is now async
+            let resolved = false; // Moved declaration outside try block
             try {
-                speechSynthesis.cancel(); // Stop any ongoing speech
+                // It's crucial to cancel any ongoing speech *before* creating a new utterance
+                // or attempting to speak, especially with rapid calls.
+                if (speechSynthesis.speaking || speechSynthesis.pending) {
+                    console.log("BrowserTTSProvider: Cancelling existing speech.");
+                    speechSynthesis.cancel();
+                }
 
                 const utterance = new SpeechSynthesisUtterance(sentence);
                 utterance.lang = language;
@@ -172,52 +227,73 @@ class BrowserTTSProvider {
                 utterance.rate = audioManager ? audioManager.rate : rate;
                 utterance.pitch = audioManager ? audioManager.pitch : pitch;
                 
-                const selectedVoice = this.getBestVoice(language);
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                    console.log(`BrowserTTSProvider: Using voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+                // Use the instance's selectedVoice if available and matches language,
+                // otherwise try to get the best one.
+                let voiceToUse = null;
+                if (this.selectedVoice && this.selectedVoice.lang === language) {
+                    voiceToUse = this.selectedVoice;
                 } else {
-                    console.log(`BrowserTTSProvider: No specific voice found for ${language}, using default.`);
+                    voiceToUse = await this.getBestVoice(language);
+                    if (voiceToUse) this.selectedVoice = voiceToUse; // Update instance's selected voice
+                }
+                
+                if (voiceToUse) {
+                    utterance.voice = voiceToUse;
+                    console.log(`BrowserTTSProvider: Using voice: ${voiceToUse.name} (${voiceToUse.lang})`);
+                } else {
+                    console.warn(`BrowserTTSProvider: No specific voice found for ${language}. Using browser default for the utterance.`);
+                    // If voiceToUse is null, utterance.voice is not set, browser uses its default for the utterance.lang
                 }
 
-                let resolved = false;
                 utterance.onend = () => {
                     if (!resolved) { resolved = true; resolve(true); }
                 };
                 utterance.onerror = (e) => {
-                    console.error('Browser speech synthesis error:', e);
-                    if (!resolved) { resolved = true; resolve(false); } // resolve(false) instead of reject to allow AudioManager to fallback
+                    console.error('BrowserTTSProvider: SpeechSynthesisUtterance error event:', e);
+                    if (!resolved) { resolved = true; resolve(false); } // Resolve false for AudioManager to fallback
                 };
-                 utterance.onboundary = (event) => { // Safari might not fire onend if interrupted early by cancel()
-                    if (event.name === 'word') { 
-                        // useful for highlighting, not used here for resolving promise
-                    }
+                utterance.onboundary = (event) => { 
+                    // Can be used for word highlighting if needed.
+                    // Some browsers (like Safari) might clear pending queue on cancel,
+                    // and onend might not fire reliably if canceled mid-speech.
+                    // onboundary is not directly used for promise resolution here.
                 };
 
-                // Safety timeout for onend event (e.g. if speech engine hangs)
-                const estimatedDuration = (sentence.length / 10) * 1000 * (1 / utterance.rate) + 1000; // Crude estimation
-                const playTimeout = Math.max(5000, estimatedDuration); // Min 5s
+                const estimatedDuration = (sentence.length / 10) * 1000 * (1 / (utterance.rate || 1)) + 2000; // Add buffer
+                const playTimeout = Math.max(5000, estimatedDuration); 
 
-                setTimeout(() => {
+                const timeoutId = setTimeout(() => {
                     if (!resolved) {
-                        console.warn(`BrowserTTSProvider: Speech synthesis 'onend' or 'onerror' event timeout after ${playTimeout}ms for: "${sentence.substring(0,30)}..."`);
+                        console.warn(`BrowserTTSProvider: Speech synthesis 'onend' or 'onerror' event timeout after ${playTimeout}ms for: "${sentence.substring(0,30)}..." Attempting to cancel.`);
                         speechSynthesis.cancel(); // Attempt to stop it
                         resolved = true; 
                         resolve(false); // Indicate failure to allow fallback
                     }
                 }, playTimeout);
 
+                // Clear timeout on normal resolution
+                const originalResolve = resolve;
+                resolve = (val) => {
+                    clearTimeout(timeoutId);
+                    originalResolve(val);
+                };
+                // No need to wrap reject, as onerror already handles it via resolve(false)
+
                 speechSynthesis.speak(utterance);
 
-            } catch (error) {
-                console.error('Error in BrowserTTSProvider.playSentence:', error);
-                if (!resolved) { resolved = true; resolve(false); }
+            } catch (error) { // Catches errors from setup (e.g. new SpeechSynthesisUtterance, or if speak itself throws early)
+                console.error('BrowserTTSProvider: Error in playSentence promise execution:', error);
+                if (!resolved) { 
+                    // No need to set resolved = true here, as resolve(false) handles it via the wrapped resolve
+                    resolve(false); // Use the wrapped resolve to ensure timeout is cleared
+                }
             }
         });
     }
 
     stop() {
         if (this.isSupported) {
+            console.log("BrowserTTSProvider: stop() called, cancelling speech.");
             speechSynthesis.cancel();
         }
     }
@@ -229,14 +305,21 @@ class BrowserTTSProvider {
     }
 
     getVoices() {
+        // Returns a promise that resolves with the voices array
+        return this.ensureVoicesLoaded();
+    }
+    
+    getCurrentVoicesList() { // Synchronous way to get currently loaded voices
         return this.voicesLoaded ? this.voices : [];
     }
+
 
     getStatus() {
         return {
             supported: this.isSupported,
             voicesLoaded: this.voicesLoaded,
-            voiceCount: this.voices.length
+            voiceCount: this.voices.length,
+            selectedVoiceName: this.selectedVoice ? this.selectedVoice.name : 'None'
         };
     }
 }

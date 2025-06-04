@@ -7,6 +7,7 @@ const DEFAULT_AUDIO_METHOD = 'google'; // Try Google TTS first, then browser
 const DEFAULT_VOLUME = 1.0;
 const DEFAULT_SPEECH_RATE = 0.8;
 const DEFAULT_SPEECH_PITCH = 1.0;
+const GOOGLE_TTS_INITIATION_TIMEOUT_MS = 3000; // 3 seconds timeout for Google TTS initiation
 
 class AudioManager {
     constructor() {
@@ -18,7 +19,8 @@ class AudioManager {
         this.isEnabled = true;
         this.currentText = null; // Stores the sentence/text being played or last played
         this.currentAudioElement = null; // For <audio> element playback
-        this.isSpeaking = false; // Tracks if audio is currently playing
+        this.isSpeaking = false; // Master flag: true if any audio playback is active or pending completion
+        this.currentAudioElementPromise = null; // To track the promise of the currently playing <audio> element for its full duration
 
         // Ensure browserTTSProvider voices are loaded early if it's a potential fallback
         if (browserTTSProvider && typeof browserTTSProvider.ensureVoicesLoaded === 'function') {
@@ -50,139 +52,206 @@ class AudioManager {
     isAudioEnabled() { return this.isEnabled; }
 
     stopCurrentAudio() {
-        if (this.currentAudioElement && !this.currentAudioElement.paused) {
-            this.currentAudioElement.pause();
-            this.currentAudioElement.src = ''; // Release resource
+        console.log("AudioManager: stopCurrentAudio called.");
+        if (this.currentAudioElement) {
+            if (!this.currentAudioElement.paused) {
+                this.currentAudioElement.pause();
+            }
+            this.currentAudioElement.src = ''; // Listeners are managed by playAudioElement's completion promise resolution
             this.currentAudioElement = null;
-            console.log("AudioManager: Stopped <audio> element playback.");
+            console.log("AudioManager: Stopped and cleared <audio> element.");
         }
-        if (this.isSupportedNatively() && speechSynthesis.speaking) {
+        this.currentAudioElementPromise = null; // Clear the promise for audio completion
+        
+        if (this.isSupportedNatively() && (speechSynthesis.speaking || speechSynthesis.pending)) {
             speechSynthesis.cancel();
-            console.log("AudioManager: Cancelled native speech synthesis.");
+            console.log("AudioManager: Cancelled native speech synthesis via speechSynthesis.cancel().");
         }
-        this.isSpeaking = false;
+        this.isSpeaking = false; 
+        console.log("AudioManager: stopCurrentAudio finished, isSpeaking set to false.");
     }
 
     async playSentence(sentence) {
         if (!this.isEnabled || !sentence || typeof sentence !== 'string' || sentence.trim() === '') {
-            console.log('AudioManager: Playback skipped (disabled or empty sentence).');
+            console.log('AudioManager: Playback skipped (disabled or empty/invalid sentence).');
             return false;
         }
-        this.currentText = sentence;
-        this.stopCurrentAudio();
-        this.isSpeaking = true;
 
-        let success = false;
+        if (this.isSpeaking) {
+            console.log(`AudioManager: playSentence called for "${sentence.substring(0,30)}..." but already speaking. Request ignored.`);
+            return false; 
+        }
+        
+        this.isSpeaking = true; 
+        this.currentText = sentence; 
+        console.log(`AudioManager: Attempting to play "${this.currentText.substring(0,30)}...". isSpeaking = true.`);
+
+        let operationSucceeded = false; // Tracks the success of the entire playSentence operation
         const options = {
             volume: this.volume,
             rate: this.rate,
             pitch: this.pitch,
-            audioManager: this // Pass reference to this AudioManager instance
+            audioManager: this,
+            initiationTimeout: GOOGLE_TTS_INITIATION_TIMEOUT_MS 
         };
 
         try {
             if (this.method === 'google') {
-                const cacheKey = `google_${sentence}`;
-                const cachedAudioUrl = await this.cache.get(cacheKey);
-
-                if (cachedAudioUrl) {
-                    console.log(`AudioManager: Playing "${sentence.substring(0,30)}..." from cache (Google).`);
-                    try {
-                        success = await this.playAudioElement(cachedAudioUrl);
-                    } catch (e) {
-                        console.warn('AudioManager: Cached audio playback failed, deleting from cache.', e);
-                        await this.cache.remove(cacheKey);
-                        success = false; // Ensure fallback is attempted
-                    }
-                } else {
-                    console.log(`AudioManager: Attempting Google TTS for "${sentence.substring(0,30)}...".`);
-                    success = await googleTTSProvider.playSentence(sentence, options);
-                    if (success && googleTTSProvider.lastPlayedUrl) { // Assuming provider might expose this for caching
-                         // The current GoogleTTSProvider gets the URL and calls playAudioElement itself.
-                         // Caching should happen if playAudioElement was successful from a new URL.
-                         // This needs careful handling: playAudioElement is generic.
-                         // Let's assume googleTTSProvider.playSentence will return an object {success: true, url: audioUrl}
-                         // For now, caching will be implicit if playAudioElement is called with a new URL directly from provider
-                         // OR the provider gives back the URL to cache here.
-                         // For now, we will rely on the /api/tts being cachable by the browser if headers are set right.
-                         // Or, more explicitly, the cache key needs to be set after successful fetch if URL is from /api/tts.
-                    }
-                }
+                console.log(`AudioManager: Trying Google TTS for "${this.currentText.substring(0,30)}...".`);
                 
-                if (!success) {
-                    console.log('AudioManager: Google TTS failed or no audio, falling back to browser TTS.');
-                    success = await browserTTSProvider.playSentence(sentence, options);
+                const googlePlayInitiationPromise = googleTTSProvider.playSentence(this.currentText, options);
+                const timeoutPromise = new Promise(resolve => 
+                    setTimeout(() => resolve("timeout"), GOOGLE_TTS_INITIATION_TIMEOUT_MS)
+                );
+
+                const initiationResult = await Promise.race([googlePlayInitiationPromise, timeoutPromise]);
+
+                if (initiationResult === true) { // Google TTS initiation was successful
+                    console.log("AudioManager: Google TTS initiation successful. Waiting for playback completion.");
+                    if (this.currentAudioElementPromise) {
+                        operationSucceeded = await this.currentAudioElementPromise; 
+                        if (!operationSucceeded) {
+                            console.log("AudioManager: Google TTS initiated but playback failed/aborted during its course.");
+                        } else {
+                            console.log("AudioManager: Google TTS playback completed successfully.");
+                        }
+                    } else {
+                        console.error("AudioManager: Google TTS initiated but currentAudioElementPromise is missing.");
+                        operationSucceeded = false; 
+                    }
+                } else { // Initiation failed (provider returned false) or timed out (race returned "timeout")
+                    if (initiationResult === "timeout") {
+                        console.warn("AudioManager: Google TTS initiation timed out.");
+                    } else {
+                        console.log("AudioManager: Google TTS provider indicated initiation failure (returned false).");
+                    }
+                    this.stopCurrentAudio(); // Stop any partial Google attempt. Sets isSpeaking = false.
+                    this.isSpeaking = true;  // Re-claim lock for BrowserTTS for this playSentence operation.
+                    
+                    console.log("AudioManager: Falling back to browser TTS.");
+                    operationSucceeded = await browserTTSProvider.playSentence(this.currentText, options);
                 }
             } else if (this.method === 'browser') {
-                console.log(`AudioManager: Attempting Browser TTS for "${sentence.substring(0,30)}...".`);
-                success = await browserTTSProvider.playSentence(sentence, options);
-            } else {
+                console.log(`AudioManager: Trying Browser TTS for "${this.currentText.substring(0,30)}...".`);
+                operationSucceeded = await browserTTSProvider.playSentence(this.currentText, options);
+            } else { // Fallback for unknown method
                 console.warn(`AudioManager: Unknown method ${this.method}, defaulting to browser TTS.`);
-                success = await browserTTSProvider.playSentence(sentence, options);
+                operationSucceeded = await browserTTSProvider.playSentence(this.currentText, options);
             }
-        } catch (error) {
-            console.error(`AudioManager: Error during playback of "${sentence.substring(0,30)}...":`, error);
-            success = false;
-            // Final attempt with browser if a catastrophic error occurred above primary/secondary choice
-            if (this.method === 'google') { // if primary was google and it exploded badly
+        } catch (error) { 
+            console.error(`AudioManager: Overall error during playSentence for "${this.currentText.substring(0,30)}...":`, error);
+            operationSucceeded = false;
+            if (this.method === 'google' && !operationSucceeded) { 
                  try {
-                    console.log('AudioManager: Catastrophic error fallback to browser TTS.');
-                    success = await browserTTSProvider.playSentence(sentence, options);
-                } catch (finalError) { console.error('AudioManager: Final fallback to browser TTS also failed:', finalError); }
+                    console.log('AudioManager: Catastrophic error in GoogleTTS path, attempting final direct browser fallback.');
+                    this.stopCurrentAudio(); 
+                    this.isSpeaking = true; 
+                    operationSucceeded = await browserTTSProvider.playSentence(this.currentText, options);
+                } catch (finalError) { 
+                    console.error('AudioManager: Final browser TTS fallback also failed catastrophically:', finalError); 
+                }
             }
+        } finally {
+            this.isSpeaking = false; 
+            console.log(`AudioManager: playSentence for "${this.currentText.substring(0,30)}..." finished. isSpeaking = false. Final operationSucceeded: ${operationSucceeded}`);
         }
-
-        this.isSpeaking = false;
-        if (!success) console.warn(`AudioManager: All playback attempts failed for "${sentence.substring(0,30)}...".`);
-        return success;
+        return operationSucceeded;
     }
 
+    // This method should resolve TRUE upon successful *initiation* of playback,
+    // and FALSE if initiation fails. It also sets up a promise (this.currentAudioElementPromise)
+    // that resolves/rejects when the audio actually finishes/errors.
     async playAudioElement(audioUrl) {
-        this.stopCurrentAudio(); // Stop anything previous before playing new URL
-        this.isSpeaking = true;
+        console.log("AudioManager.playAudioElement: Called for URL:", audioUrl);
         
-        return new Promise((resolve, reject) => {
-            this.currentAudioElement = new Audio(audioUrl);
-            this.currentAudioElement.volume = this.volume;
-            this.currentAudioElement.crossOrigin = 'anonymous'; // Important for some audio sources
+        if (this.currentAudioElement && this.currentAudioElement.src === audioUrl && !this.currentAudioElement.paused) {
+            console.warn("AudioManager.playAudioElement: Attempt to play same URL that is already playing. Stopping existing and replaying for new promise chain.");
+            this.currentAudioElement.pause();
+            this.currentAudioElement.src = ''; // Ensure it stops and releases old listeners context
+        } else if (this.currentAudioElement && this.currentAudioElement.src !== audioUrl && !this.currentAudioElement.paused) {
+            console.log("AudioManager.playAudioElement: Stopping different existing audio element.");
+            this.currentAudioElement.pause();
+            this.currentAudioElement.src = '';
+        }
+        // Always clear old promise before creating a new audio element and its promise
+        this.currentAudioElementPromise = null; 
+
+        this.currentAudioElement = new Audio(audioUrl);
+        this.currentAudioElement.volume = this.volume;
+        this.currentAudioElement.crossOrigin = 'anonymous'; 
+
+        // This promise (currentAudioElementPromise) is for the *completion* of the audio playback.
+        this.currentAudioElementPromise = new Promise((resolveCompletion) => {
+            const element = this.currentAudioElement; 
+            if (!element) {
+                console.error("AudioManager.playAudioElement: currentAudioElement is null unexpectedly during completion promise setup.");
+                resolveCompletion(false); 
+                return;
+            }
+            let hasSettledCompletion = false;
+            const uniqueId = Date.now() + Math.random(); // For debugging listener scope
+            // console.log(`AudioManager.playAudioElement [${uniqueId}]: Setting up completion listeners for ${audioUrl}`);
 
             const onEnded = () => {
-                cleanup();
-                this.isSpeaking = false;
-                resolve(true);
+                if (hasSettledCompletion) return;
+                hasSettledCompletion = true;
+                console.log(`AudioManager.playAudioElement [${uniqueId}]: Playback ended for`, audioUrl);
+                cleanupListeners();
+                resolveCompletion(true); 
             };
             const onError = (e) => {
-                console.error('AudioManager: <audio> element error:', e, 'URL:', audioUrl);
-                cleanup();
-                this.isSpeaking = false;
-                resolve(false); // Resolve false for fallback, don't reject promise chain for this error type
+                if (hasSettledCompletion) return;
+                hasSettledCompletion = true;
+                console.error(`AudioManager.playAudioElement [${uniqueId}]: Error event for`, audioUrl, e);
+                cleanupListeners();
+                resolveCompletion(false); 
             };
             const onAbort = () => {
-                console.log('AudioManager: <audio> element playback aborted.', 'URL:', audioUrl);
-                cleanup();
-                this.isSpeaking = false;
-                resolve(false);
+                if (hasSettledCompletion) return;
+                hasSettledCompletion = true;
+                console.log(`AudioManager.playAudioElement [${uniqueId}]: Abort event for`, audioUrl);
+                cleanupListeners();
+                resolveCompletion(false); 
             };
 
-            const cleanup = () => {
-                if (this.currentAudioElement) {
-                    this.currentAudioElement.removeEventListener('ended', onEnded);
-                    this.currentAudioElement.removeEventListener('error', onError);
-                    this.currentAudioElement.removeEventListener('abort', onAbort);
+            const cleanupListeners = () => {
+                // console.log(`AudioManager.playAudioElement [${uniqueId}]: Cleaning up listeners for ${audioUrl}`);
+                if (element) {
+                    element.removeEventListener('ended', onEnded);
+                    element.removeEventListener('error', onError);
+                    element.removeEventListener('abort', onAbort);
                 }
             };
-
-            this.currentAudioElement.addEventListener('ended', onEnded);
-            this.currentAudioElement.addEventListener('error', onError);
-            this.currentAudioElement.addEventListener('abort', onAbort);
             
-            this.currentAudioElement.play().catch(playError => {
-                console.error('AudioManager: <audio> element .play() rejected:', playError, 'URL:', audioUrl);
-                cleanup();
-                this.currentAudioElement = null; // Ensure it is nulled
-                this.isSpeaking = false;
-                resolve(false); // Resolve false for fallback
-            });
+            element.addEventListener('ended', onEnded);
+            element.addEventListener('error', onError);
+            element.addEventListener('abort', onAbort);
+        });
+        
+        // This returned promise is for the *initiation* of playback.
+        return new Promise((resolveInitiation) => {
+            if (!this.currentAudioElement) { 
+                 console.error("AudioManager.playAudioElement: currentAudioElement is null before play() call.");
+                 this.currentAudioElementPromise = Promise.resolve(false); 
+                 resolveInitiation(false);
+                 return;
+            }
+            this.currentAudioElement.play()
+                .then(() => {
+                    console.log("AudioManager.playAudioElement: .play() successful (initiation) for", audioUrl);
+                    resolveInitiation(true); 
+                })
+                .catch(playError => {
+                    console.error('AudioManager.playAudioElement: .play() rejected (initiation failed) for', audioUrl, playError);
+                    // Ensure the completion promise also reflects this failure if it hasn't already been settled by an error/abort event.
+                    if (this.currentAudioElementPromise) { // Check if it was set
+                        // Manually resolve completion as false if initiation failed, unless it already settled.
+                        // This is tricky because error/abort events might fire. For now, let them handle completion promise.
+                        // The main thing is initiation failed.
+                    }
+                    this.currentAudioElementPromise = Promise.resolve(false); // Overwrite/set if it wasn't already failed.
+                    resolveInitiation(false); 
+                });
         });
     }
 
@@ -191,18 +260,21 @@ class AudioManager {
     }
 
     async repeatCurrentSentence() {
-        if (this.currentText) {
-            console.log(`AudioManager: Repeating "${this.currentText.substring(0,30)}...".`);
-            // If audio is already playing, stop it and then replay.
-            // The playSentence method itself calls stopCurrentAudio, so this should be fine.
-            if (this.isSpeaking) {
-                console.log('AudioManager: Repeat called while speaking, will stop and restart.');
-            }
-            return await this.playSentence(this.currentText);
-        } else {
+        if (!this.isEnabled) {
+            console.log("AudioManager: Repeat skipped (AudioManager disabled).");
+            return false;
+        }
+        if (this.isSpeaking) { 
+            console.log("AudioManager: Repeat skipped (already speaking).");
+            return false;
+        }
+        if (!this.currentText) {
             console.log('AudioManager: No current sentence to repeat.');
             return false;
         }
+        
+        console.log(`AudioManager: repeatCurrentSentence called for "${this.currentText.substring(0,30)}...".`);
+        return await this.playSentence(this.currentText); 
     }
 
     clearCache() {

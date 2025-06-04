@@ -2,6 +2,7 @@ import { shuffleArray } from '../utils/helpers.js';
 // import { hideWordInSentence } from '../utils/sentenceUtils.js'; // Likely unused now
 // import { getTimerEvaluationContext } from './timerManager.js'; // Might be handled by gameState or re-evaluated
 import { gameState } from './gameState.js'; // Import the global gameState instance
+import { audioManager } from '../audio/audioManager.js'; // ADDED IMPORT
 
 // Game State (local gameManager state is now minimized, gameState is primary)
 // let gameWords = []; // Handled by gameState
@@ -82,6 +83,7 @@ export function addWordToRetryList(wordData, reason, maxAttempts) {
 
 
 export function startGame(allWordsFromFilter, allDescriptionsFromFilter, allExampleSentencesFromFilter) {
+    audioManager.stopCurrentAudio(); // ADDED: Stop any audio from previous game/menu
     if (onUpdateBackButtonVisibilityCallback) onUpdateBackButtonVisibilityCallback();
 
     const wordDataForGameState = allWordsFromFilter.map((wordStr, index) => ({
@@ -121,6 +123,7 @@ export function startGame(allWordsFromFilter, allDescriptionsFromFilter, allExam
 }
 
 export function startRetryGame() {
+    audioManager.stopCurrentAudio(); // ADDED: Stop any lingering audio before starting retry
     if (onUpdateBackButtonVisibilityCallback) onUpdateBackButtonVisibilityCallback();
 
     if (gameState.startRetrySession()) { // gameState.startRetrySession handles word prep
@@ -209,7 +212,8 @@ function showNextWordInternal() {
 }
 
 export function requestNextWordOrEndGameDisplay() {
-    console.log("[gameManager.requestNextWordOrEndGameDisplay] Called.");
+    audioManager.stopCurrentAudio(); // ADDED: Stop audio before deciding next word or results
+    console.log("[gameManager.requestNextWordOrEndGameDisplay] Called, audio stopped.");
     const hasNextWord = gameState.nextWord();
     console.log("[gameManager.requestNextWordOrEndGameDisplay] gameState.nextWord() returned:", hasNextWord);
 
@@ -237,6 +241,9 @@ export function requestNextWordOrEndGameDisplay() {
 }
 
 export function processAnswer(userAnswerString, timeTaken) {
+    audioManager.stopCurrentAudio(); // ADDED: Stop any audio as soon as an answer is processed
+    console.log("[gameManager.processAnswer] Called, audio stopped.");
+
     const currentWordData = gameState.getCurrentWord();
     if (!currentWordData) {
         console.error("GameManager processAnswer: No current word data from gameState.");
@@ -307,3 +314,19 @@ export function getCurrentWord() {
 } 
 */
 // End of file after this removal or any other remaining code 
+
+export function getGameConfig() {
+    // ... existing code ...
+}
+
+export function getOverallStats() {
+    // ... existing code ...
+}
+
+export function getWordResults() {
+    // ... existing code ...
+}
+
+export function getWordRetryData() {
+    // ... existing code ...
+} 
