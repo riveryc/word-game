@@ -33,6 +33,17 @@ def serve_js(path):
 def serve_styles(path):
     return send_from_directory('styles', path)
 
+@app.route('/<string:page_name>.html')
+def serve_html_from_pages(page_name):
+    filename = f"{page_name}.html"
+    # Basic security: prevent directory traversal by ensuring page_name is simple
+    if '/' in page_name or '..' in page_name:
+        return "Invalid page name", 400
+    try:
+        return send_from_directory('html_pages', filename)
+    except FileNotFoundError:
+        return "Page not found", 404
+
 def normalize_word(word_input):
     if not isinstance(word_input, str):
         return ""
