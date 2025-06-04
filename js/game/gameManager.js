@@ -209,24 +209,27 @@ function showNextWordInternal() {
 }
 
 export function requestNextWordOrEndGameDisplay() {
-    if (gameState.nextWord()) { // gameState.nextWord moves to the next word and returns true, or ends game and returns false
+    console.log("[gameManager.requestNextWordOrEndGameDisplay] Called.");
+    const hasNextWord = gameState.nextWord();
+    console.log("[gameManager.requestNextWordOrEndGameDisplay] gameState.nextWord() returned:", hasNextWord);
+
+    if (hasNextWord) { 
+        console.log("[gameManager.requestNextWordOrEndGameDisplay] Proceeding to showNextWordInternal.");
         showNextWordInternal();
     } else {
+        console.log("[gameManager.requestNextWordOrEndGameDisplay] No next word. Showing final results.");
         // Game is complete, show final results
         const stats = gameState.getStatistics();
-        const gameDataForResults = gameState.exportGameData(); // gameState provides comprehensive results
+        const gameDataForResults = gameState.exportGameData(); 
         
         if (onShowFinalResultsUICallback) {
             onShowFinalResultsUICallback(
-                gameDataForResults.results.map(r => r.word), // map to pass word objects or just strings?
-                                                           // gamePlayInterface.createWordComparisonUI expects word string
-                                                           // final results UI might need more complex objects.
-                                                           // gameState.results contains objects with {word: wordObject, ...}
-                gameDataForResults.results, // Pass full result objects
+                gameDataForResults.results.map(r => r.word),
+                gameDataForResults.results, 
                 stats.correctCount,
                 stats.totalWords,
                 isRetryMode,
-                gameState.getRetryWords() // Words available for a potential next retry session
+                gameState.getRetryWords()
             );
         }
         if (onUpdateBackButtonVisibilityCallback) onUpdateBackButtonVisibilityCallback(true);

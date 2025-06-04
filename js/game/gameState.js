@@ -183,17 +183,24 @@ export class GameState {
      * @returns {boolean} - True if there is a next word, false if game is complete
      */
     nextWord() {
+        console.log(`[gameState.nextWord] Called. Current index: ${this.currentWordIndex}, Total game words: ${this.gameWords.length}`);
         this.endCurrentWord();
         
+        const oldIndex = this.currentWordIndex;
         this.currentWordIndex++;
+        console.log(`[gameState.nextWord] Index incremented from ${oldIndex} to ${this.currentWordIndex}`);
         
         if (this.currentWordIndex >= this.gameWords.length) {
+            console.log("[gameState.nextWord] End of game words reached.");
             this.endGame();
+            console.log("[gameState.nextWord] Returning false (no next word).");
             return false;
         }
         
         this.currentWord = this.gameWords[this.currentWordIndex];
+        console.log("[gameState.nextWord] New currentWord set:", this.currentWord ? this.currentWord._debug_id : "null", this.currentWord);
         this.startCurrentWord();
+        console.log("[gameState.nextWord] Returning true (next word available).");
         return true;
     }
 

@@ -58,7 +58,25 @@ function displayWordChallenge(currentWordData) {
     if (!gameInterfaceDiv) gameInterfaceDiv = document.getElementById('game-interface');
     if (!wordDisplayDiv) wordDisplayDiv = document.getElementById('word-display');
     if (!progressDiv) progressDiv = document.getElementById('progress');
-    if (!wordDescriptionDiv) wordDescriptionDiv = document.getElementById('word-description');
+    
+    // Remove the word-description element if it exists
+    const wordDescriptionElementToRemove = document.getElementById('word-description');
+    if (wordDescriptionElementToRemove && wordDescriptionElementToRemove.parentNode) {
+        wordDescriptionElementToRemove.parentNode.removeChild(wordDescriptionElementToRemove);
+        console.log("[gamePlayInterface.displayWordChallenge] Removed #word-description element.");
+        wordDescriptionDiv = null; // Clear the cached variable for it
+    } else {
+        // If it was already removed or never existed, wordDescriptionDiv might be null or the element not found
+        // console.log("[gamePlayInterface.displayWordChallenge] #word-description element not found or already removed.");
+    }
+    
+    if (!wordDescriptionDiv) { 
+        // If it was removed, try to get it again - though it shouldn't be used if removed.
+        // This line was previously here, but if we remove the element, this cache will be invalid.
+        // wordDescriptionDiv = document.getElementById('word-description'); 
+        // Let's ensure it's not used later if removed.
+    }
+
     if (!feedbackDiv) feedbackDiv = document.getElementById('feedback');
 
     gameInterfaceDiv.style.display = 'block';
@@ -132,7 +150,13 @@ function displayWordChallenge(currentWordData) {
     }
 
     progressDiv.textContent = currentWordData.progressText || '';
-    wordDescriptionDiv.innerHTML = currentWordData.hintText || (currentWordData.description || '');
+    
+    // Conditional usage of wordDescriptionDiv
+    if (wordDescriptionDiv) { // Check if it still exists (it shouldn't if we removed it)
+        wordDescriptionDiv.innerHTML = currentWordData.hintText || (currentWordData.description || '');
+    } else {
+        console.log("[gamePlayInterface.displayWordChallenge] wordDescriptionDiv is null, not setting hint/description.");
+    }
 
     if (startWordTimerFn && currentWordData && currentWordData.word) {
         startWordTimerFn(currentWordData.word.length); 
@@ -167,16 +191,26 @@ function handleInputChange(event) {
 
 function handleInputKeydown(event) {
     const index = parseInt(event.target.dataset.index);
-    isProcessing = false; 
+    // isProcessing = false; // This was moved to be set only if not Enter+waitingForContinue
 
     if (event.key === 'Enter') {
-        event.preventDefault();
+        console.log("[gamePlayInterface.handleInputKeydown] Enter pressed. waitingForContinue:", waitingForContinue);
+        event.preventDefault(); 
         if (waitingForContinue) { 
+            console.log("[gamePlayInterface.handleInputKeydown] Waiting for continue is true. Processing next word.");
             isProcessing = true; 
             waitingForContinue = false;
             document.removeEventListener('keydown', handleDocumentKeydown);
-            if (requestNextWordFn) requestNextWordFn();
+            console.log("[gamePlayInterface.handleInputKeydown] Removed document listener for handleDocumentKeydown.");
+            if (requestNextWordFn) {
+                console.log("[gamePlayInterface.handleInputKeydown] Calling requestNextWordFn.");
+                requestNextWordFn();
+            } else {
+                console.error("[gamePlayInterface.handleInputKeydown] requestNextWordFn is null!");
+            }
         } else {
+            console.log("[gamePlayInterface.handleInputKeydown] Not waiting for continue. Calling checkAnswerInternal.");
+            isProcessing = false; // Ensure isProcessing is false if we are submitting an answer
             checkAnswerInternal();
         }
     } else if (event.key === 'Backspace') {
@@ -218,13 +252,24 @@ function handleInputKeydown(event) {
 
 // General keydown listener for the document (e.g., for space to repeat when inputs not focused, or global enter)
 function handleDocumentKeydown(event) {
-    if (event.target.nodeName === 'INPUT') return; // Already handled by handleInputKeydown
+    console.log("[gamePlayInterface.handleDocumentKeydown] Keydown event on document:", event.key);
+    if (event.target.nodeName === 'INPUT') {
+        console.log("[gamePlayInterface.handleDocumentKeydown] Event target is INPUT, returning.");
+        return; // Already handled by handleInputKeydown
+    }
 
     if (event.key === 'Enter' && waitingForContinue) {
+        console.log("[gamePlayInterface.handleDocumentKeydown] Enter pressed on document. waitingForContinue:", waitingForContinue);
         isProcessing = true;
         waitingForContinue = false;
         document.removeEventListener('keydown', handleDocumentKeydown);
-        if (requestNextWordFn) requestNextWordFn();
+        console.log("[gamePlayInterface.handleDocumentKeydown] Removed self (document listener for handleDocumentKeydown).");
+        if (requestNextWordFn) {
+            console.log("[gamePlayInterface.handleDocumentKeydown] Calling requestNextWordFn.");
+            requestNextWordFn();
+        } else {
+            console.error("[gamePlayInterface.handleDocumentKeydown] requestNextWordFn is null!");
+        }
     } else if ((event.key === ' ' || event.key === 'Spacebar') && !isProcessing) {
         event.preventDefault();
         if (repeatWordFn) repeatWordFn();
@@ -244,29 +289,22 @@ function applyFeedbackToInputs(userAttemptString, expectedWordString) {
     for (let i = 0; i < inputElements.length; i++) {
         const input = inputElements[i];
         const expectedCharOriginal = expectedWordString[i] || '';
-        const userChar = userAttemptString[i] || ''; // This will include user's input for non-hints
+        const userChar = userAttemptString[i] || ''; 
 
-        // If it was not a hint letter initially, apply feedback.
-        // Hint letters (readOnly) should retain their initial value and not get feedback classes for correctness/incorrectness of the hint itself.
         if (!input.classList.contains('hint-letter')) {
-            input.value = expectedCharOriginal; // Show the correct letter for user-guessed spots
-            input.readOnly = true; // Make input readonly after checking
-            input.classList.remove('input-incorrect'); // Clear previous incorrect feedback class
-    
+            input.value = expectedCharOriginal; 
+            input.readOnly = true; 
+            input.classList.remove('input-incorrect'); 
             if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
                 input.classList.add('input-incorrect');
                 allCorrect = false;
             }
         } else {
-            // For hint letters, ensure they are still readOnly and show the original hint.
-            // Their value was already set and they are readOnly. No further action needed unless specific styling changes.
-            // If the original word from expectedWordString differs from the hint (should not happen with correct logic),
-            // this ensures the hint is preserved.
-            input.value = expectedCharOriginal; // Ensure it displays the definitive correct letter (which should be the hint)
-            // AllCorrect flag should consider if the user's input for non-hint parts matches.
-            // The loop structure correctly does this as `allCorrect` is only set to false if a non-hint character is wrong.
+            input.value = expectedCharOriginal; 
         }
     }
+    // Log active element after inputs are made read-only
+    console.log("[gamePlayInterface.applyFeedbackToInputs] Active element after setting inputs readOnly:", document.activeElement);
     return allCorrect;
 }
 
@@ -285,8 +323,9 @@ function checkAnswerInternal() {
 
     if (!inputElements.some(input => input.value.trim() !== '')) {
         if(feedbackDiv) feedbackDiv.innerHTML = '<span class="incorrect">Please type the missing word!</span>';
-        if (inputElements.length > 0) focusInputElement(0);
-        console.log("[gamePlayInterface.checkAnswerInternal] Empty input. Resetting isProcessing=false.");
+        const firstEditable = inputElements.find(input => !input.readOnly);
+        if (firstEditable) focusInputElement(inputElements.indexOf(firstEditable));
+        else if (inputElements.length > 0) focusInputElement(0);
         isProcessing = false; 
         return;
     }
@@ -312,37 +351,22 @@ function checkAnswerInternal() {
     }
 
     if (answerProcessingResult.resultStatus === 'success') {
-        feedbackHTML = `
-            <div class="correct-feedback">
-                <span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br>
-                <div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">
-                    Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s
-                </div>
-            </div>`;
+        feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s</div></div>`;
     } else if (answerProcessingResult.resultStatus === 'timeout') { 
-        feedbackHTML = `
-            <div class="correct-feedback">
-                <span class="correct" style="font-size: 1.5em;">✅ Correct (but a bit slow)</span><br>
-                <div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">
-                    Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s. Try to be faster!
-                </div>
-            </div>`;
-    } else { // Incorrect
-        feedbackHTML = `
-            <div class="incorrect-feedback">
-                <span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><br>
-                <div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">
-                    Press Enter to continue.
-                    ${timerInfoHTML} 
-                </div>
-            </div>`;
+        feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Correct (but a bit slow)</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s. Try to be faster!</div></div>`;
+    } else { 
+        feedbackHTML = `<div class="incorrect-feedback"><span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><br><div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">Press Enter to continue.${timerInfoHTML}</div></div>`;
     }
     
     if(feedbackDiv) feedbackDiv.innerHTML = feedbackHTML;
 
+    console.log("[gamePlayInterface.checkAnswerInternal] Before setting waitingForContinue:", waitingForContinue);
     waitingForContinue = true; 
-    document.removeEventListener('keydown', handleDocumentKeydown); 
+    console.log("[gamePlayInterface.checkAnswerInternal] After setting waitingForContinue:", waitingForContinue);
+    
+    document.removeEventListener('keydown', handleDocumentKeydown); // Remove any old one first
     document.addEventListener('keydown', handleDocumentKeydown);
+    console.log("[gamePlayInterface.checkAnswerInternal] Added document event listener for handleDocumentKeydown.");
 }
 
 
@@ -372,14 +396,23 @@ export function deactivateGamePlayFocusLock() {
 
 export function initializeGamePlayInterface(callbacks) {
     processAnswerFn = callbacks.processAnswer;
-    requestNextWordFn = callbacks.requestNextWord;
-    getTimerContextFn = callbacks.getTimerContext; 
+    requestNextWordFn = callbacks.requestNextWordOrEndGameDisplay;
+    getTimerContextFn = callbacks.getTimerEvaluationContext;
     stopWordTimerFn = callbacks.stopWordTimer;
     startWordTimerFn = callbacks.startWordTimer;
-    repeatWordFn = callbacks.repeatWord; 
+    repeatWordFn = callbacks.repeatWord;
     // getGameManagerCurrentWordFn = callbacks.getGameManagerCurrentWord;
 
-    console.log("[gamePlayInterface.js] Initialized with callbacks.");
+    console.log("[gamePlayInterface.js] Initialized with callbacks. requestNextWordFn type:", typeof requestNextWordFn, "getTimerContextFn type:", typeof getTimerContextFn);
+    
+    // Attempt to remove word-description on initialization as well, if it exists then.
+    // This handles cases where displayWordChallenge might not be the first point of interaction.
+    const descriptionElement = document.getElementById('word-description');
+    if (descriptionElement && descriptionElement.parentNode) {
+        descriptionElement.parentNode.removeChild(descriptionElement);
+        console.log("[gamePlayInterface.initializeGamePlayInterface] Removed #word-description element during init.");
+        wordDescriptionDiv = null; // Ensure cache is cleared
+    }
 }
 
 // Function to reset cached DOM elements for testing purposes
@@ -387,11 +420,17 @@ function resetUIStateForTesting() {
     gameInterfaceDiv = null;
     wordDisplayDiv = null;
     progressDiv = null;
-    wordDescriptionDiv = null;
+    // wordDescriptionDiv = null; // This will be nulled if removed, or if it's not found.
+                                // Explicitly nulling here ensures it's reset for tests.
+    if (document.getElementById('word-description')) {
+        // If test re-adds it, this will get it. Otherwise, it remains null if removed.
+        // This is tricky as the element is actively removed.
+        // For tests, it might be better to ensure the element *is* present before a test that needs it.
+        // For now, if we always remove it, tests shouldn't expect it.
+    }
     feedbackDiv = null;
     inputElements = [];
     currentFocusedInputIndex = -1;
-    // isProcessing and waitingForContinue are reset at the start of displayWordChallenge
     console.log("[gamePlayInterface.js] Resetting UI state for testing.");
 }
 
