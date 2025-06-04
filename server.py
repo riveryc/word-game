@@ -188,4 +188,6 @@ def get_audio_file(filename):
         return jsonify({"error": "Server error while trying to send file."}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Make sure to run on 0.0.0.0 to be accessible from the network
+    # Use port 8000 as specified in README
+    app.run(host='0.0.0.0', port=8000, debug=True)

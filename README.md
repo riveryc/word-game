@@ -22,7 +22,7 @@ Choose from 3 difficulty levels:
 - **Contextual Learning**: Example sentences with target word hidden for better understanding
 - **Visual Error Analysis**: Side-by-side comparison showing user's attempt vs. correct spelling
 - **Smart Mistake Highlighting**: Incorrect letters highlighted in bold red for easy identification
-- **Internet-Based Audio**: Crystal-clear pronunciation from online dictionary API (dictionaryapi.dev) with smart caching
+- **Internet-Based Audio**: Crystal-clear pronunciation from online services (primarily Google TTS, with dictionaryapi.dev as a fallback) with smart caching
 - **Enhanced Mistake Learning**: Big, glowing display of correct spelling for better memory retention
 - **Bulletproof Retry System**: Practice only words you got wrong - no cheating possible!
 - **Word Count Selection**: Choose how many words to practice (appears for 30+ word lists)
@@ -114,13 +114,20 @@ Choose from 3 difficulty levels:
 ```
 word_game/
 ├── index.html          # Main game interface
-├── script.js           # Game logic with enhanced features
+├── js/                   # Main JavaScript directory
+│   ├── core.js           # Core application logic
+│   ├── app/              # Application-level setup, configuration
+│   ├── audio/            # Audio management and TTS providers
+│   ├── data/             # Data fetching and processing (CSV, Google Sheets)
+│   ├── game/             # Game logic, word handling, scoring
+│   ├── ui/               # User interface management, components
+│   └── utils/            # Utility functions
 ├── words.csv           # Word list with descriptions (CSV format)
 ├── server.py           # Simple HTTP server
 └── README.md           # This file
 ```
 
-## 📝 Customizing Words
+## 🎨 Customizing Words
 
 ### Local CSV File
 Edit `words.csv` to add your own words with the 6-column format:
@@ -208,6 +215,7 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 - **Responsive Design**: Works on tablets, phones, and computers
 - **Hybrid Audio**: Best of both worlds - internet quality with offline reliability
 - **Cross-Browser**: Compatible with all modern browsers
+- **Testing Framework**: Utilizes Vitest for unit and integration testing.
 
 ## 🎨 Customization
 
@@ -220,7 +228,7 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 - Add or remove levels as needed
 
 ### Audio Settings
-- Internet-based Dictionary API provides crystal-clear professional pronunciation
+- Internet-based services (Google TTS and Dictionary API) provide crystal-clear professional pronunciation
 - Smart fallback to computer speech with adjustable rate, pitch, and volume
 - Cached for performance with 3-second timeout for reliability
 
@@ -277,7 +285,7 @@ This project is open source and available for educational use.
 ## 🎉 Acknowledgments
 
 Created with love for young learners everywhere! Special thanks to:
-- Dictionary API (dictionaryapi.dev) for high-quality pronunciation
+- Google TTS & Dictionary API (dictionaryapi.dev) for high-quality pronunciation
 - All the kids who will use this to improve their spelling skills
 - Parents and teachers who make learning fun
 
@@ -286,6 +294,12 @@ Created with love for young learners everywhere! Special thanks to:
 **Happy Spelling!** 📚✨🎯
 
 ### 🔄 Version History
+- **v2.7 (Recent Updates)**:
+  - ✨ Major JavaScript modularization for improved organization and maintainability (see new File Structure).
+  - 🔊 Enhanced online audio: Google TTS is now the primary source, with Dictionary API as a fallback.
+  - 🧪 Integrated Vitest for JavaScript testing.
+  - 🛠️ Added basic engineer commands (details might be project-specific).
+  - 🐞 Numerous bug fixes including focus issues, audio playback, and UI interactions.
 - **v2.6**: Unified Enter-to-continue logic and visual error comparison system
   - ✅ Fixed skip-word bug with consistent Enter controls for all answers
   - ✅ Added side-by-side comparison showing user attempt vs. correct spelling
