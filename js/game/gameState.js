@@ -2,12 +2,18 @@
 
 import { GAME_CONFIG, RESULT_TYPES, TTS_METHODS } from '../app/config.js';
 import { shuffleArray } from '../utils/helpers.js';
+import { WordGenerator } from './wordGenerator.js';
+
+let wordObjectIdCounter = 0; // Module-level counter for unique word object IDs for debugging
 
 /**
  * Game state manager class
  */
 export class GameState {
     constructor() {
+        this.instanceId = `gs_${Math.random().toString(36).substring(2, 9)}`;
+        console.log(`[GameState constructor] Instance ID: ${this.instanceId} created.`);
+        this.wordGenerator = new WordGenerator();
         this.reset();
     }
 
@@ -15,6 +21,7 @@ export class GameState {
      * Reset game state to initial values
      */
     reset() {
+        console.log(`[GameState reset] Instance ID: ${this.instanceId}`);
         // Game configuration
         this.level = GAME_CONFIG.DEFAULT_LEVEL;
         this.timeoutPerLetter = GAME_CONFIG.DEFAULT_TIMEOUT_PER_LETTER;
@@ -54,6 +61,7 @@ export class GameState {
      * @param {Object} settings - Game settings
      */
     initialize(wordData, settings = {}) {
+        console.log(`[GameState initialize] Instance ID: ${this.instanceId}`);
         this.reset();
         
         // Apply settings
@@ -72,60 +80,68 @@ export class GameState {
      * Prepare words for the game (shuffle and limit)
      */
     prepareGameWords() {
-        // Shuffle all words
+        console.log(`[GameState prepareGameWords] Instance ID: ${this.instanceId}`);
         const shuffledWords = shuffleArray([...this.allWords]);
-        
-        // Take the requested number of words
         const selectedWords = shuffledWords.slice(0, this.wordCount);
+        const currentLevelConfig = GAME_CONFIG.LEVELS[this.level];
+        const missingPercentage = currentLevelConfig ? currentLevelConfig.missingPercentage : 100;
 
-        this.gameWords = selectedWords.map(wordObj => {
-            // Ensure wordObj and its necessary properties exist
-            if (wordObj && typeof wordObj['Example sentence'] === 'string' && typeof wordObj.word === 'string') {
-                const sentence = wordObj['Example sentence'];
+        this.gameWords = selectedWords.map((wordObj, index) => {
+            wordObj._debug_id = `word_${wordObjectIdCounter++}`; // Assign a debug ID
+            console.log(`[GameState prepareGameWords] Processing ${wordObj._debug_id}`);
+
+            if (wordObj && typeof wordObj.word === 'string' && wordObj.word.length > 0) {
                 const targetWord = wordObj.word;
+                try {
+                    const puzzle = this.wordGenerator.createWordPuzzle(targetWord.toLowerCase(), missingPercentage);
+                    wordObj.displayableWordParts = puzzle && puzzle.puzzleLetters ? puzzle.puzzleLetters : [];
+                    console.log(`[GameState prepareGameWords] ${wordObj._debug_id} displayableWordParts set, length: ${wordObj.displayableWordParts.length}`);
+                } catch (e) {
+                    console.error(`[GameState prepareGameWords] Error creating puzzle for ${wordObj._debug_id} ("${targetWord}"):`, e);
+                    wordObj.displayableWordParts = [];
+                }
 
-                const lowerSentence = sentence.toLowerCase();
-                const lowerTargetWord = targetWord.toLowerCase();
-                const startIndex = lowerSentence.indexOf(lowerTargetWord);
-
-                if (startIndex !== -1) {
-                    // Successfully found the word (case-insensitively) for splitting
-                    wordObj.sentencePrefix = sentence.substring(0, startIndex);
-                    // The actual word to be guessed is targetWord (maintaining original case)
-                    wordObj.sentenceSuffix = sentence.substring(startIndex + targetWord.length);
+                if (typeof wordObj['Example sentence'] === 'string') {
+                    const sentence = wordObj['Example sentence'];
+                    const lowerSentence = sentence.toLowerCase();
+                    const lowerTargetWord = targetWord.toLowerCase(); 
+                    const startIndex = lowerSentence.indexOf(lowerTargetWord);
+                    if (startIndex !== -1) {
+                        wordObj.sentencePrefix = sentence.substring(0, startIndex);
+                        wordObj.sentenceSuffix = sentence.substring(startIndex + targetWord.length);
+                    } else {
+                        wordObj.sentencePrefix = sentence; 
+                        wordObj.sentenceSuffix = '';
+                    }
                 } else {
-                    // This case should ideally be prevented by the filtering in dataSource.js
-                    // If it occurs, log an error and provide safe defaults.
-                    console.error(
-                        `GameState Error: Word "${targetWord}" not found (even case-insensitively) in its sentence "${sentence}". ` +
-                        `This might indicate an issue with data filtering or the data itself. ` +
-                        `Word object: ${JSON.stringify(wordObj)}`
-                    );
-                    // Make the word playable by showing the full sentence, but it won't have a blank.
-                    wordObj.sentencePrefix = sentence; 
+                    wordObj.sentencePrefix = '';
                     wordObj.sentenceSuffix = '';
-                    // wordObj.word remains the target for checking, though UI will be odd.
                 }
             } else {
-                // Log if a wordObj is malformed, though filtering should prevent this.
-                console.warn('GameState Warning: Malformed word object encountered in prepareGameWords:', wordObj);
+                if(wordObj) wordObj.displayableWordParts = []; // Fallback for malformed
             }
             return wordObj;
         });
         
-        // Reset current word index
         this.currentWordIndex = 0;
         this.currentWord = this.gameWords.length > 0 ? this.gameWords[0] : null;
+        if (this.currentWord) {
+            console.log(`[GameState prepareGameWords] Finished. currentWord is ${this.currentWord._debug_id}, hasOwnProperty('displayableWordParts'): ${this.currentWord.hasOwnProperty('displayableWordParts')}`);
+        }
     }
 
     /**
      * Start the game
      */
     startGame() {
+        console.log(`[GameState startGame] Instance ID: ${this.instanceId}`);
         this.isGameActive = true;
         this.startTime = Date.now();
         this.currentWordIndex = 0;
         this.currentWord = this.gameWords[0] || null;
+        if (this.currentWord) {
+            console.log(`[GameState startGame] currentWord is ${this.currentWord._debug_id}, hasOwnProperty('displayableWordParts'): ${this.currentWord.hasOwnProperty('displayableWordParts')}`);
+        }
         this.startCurrentWord();
     }
 
@@ -267,6 +283,14 @@ export class GameState {
      * @returns {Object|null} - Current word object or null
      */
     getCurrentWord() {
+        console.log(`[GameState getCurrentWord] Instance ID: ${this.instanceId}.`);
+        if (this.currentWord) {
+            console.log(`[GameState getCurrentWord] currentWord is ${this.currentWord._debug_id}. About to return this.currentWord.`);
+            console.log("[GameState getCurrentWord] this.currentWord.hasOwnProperty('displayableWordParts'):", this.currentWord.hasOwnProperty('displayableWordParts'));
+            // console.log("[GameState getCurrentWord] this.currentWord.displayableWordParts value:", this.currentWord.displayableWordParts); // Keep this commented for now
+        } else {
+            console.log("[GameState getCurrentWord] this.currentWord is null/undefined.");
+        }
         return this.currentWord;
     }
 

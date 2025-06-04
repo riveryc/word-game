@@ -26,6 +26,26 @@ let feedbackDiv = null;
 let inputElements = []; 
 let currentFocusedInputIndex = -1;
 
+// Helper function to find the index of the next editable input
+function findNextEditableInputIndex(currentIndex) {
+    for (let i = currentIndex + 1; i < inputElements.length; i++) {
+        if (inputElements[i] && !inputElements[i].readOnly) {
+            return i;
+        }
+    }
+    return -1; // No next editable input found
+}
+
+// Helper function to find the index of the previous editable input
+function findPreviousEditableInputIndex(currentIndex) {
+    for (let i = currentIndex - 1; i >= 0; i--) {
+        if (inputElements[i] && !inputElements[i].readOnly) {
+            return i;
+        }
+    }
+    return -1; // No previous editable input found
+}
+
 // Function to display the word challenge
 function displayWordChallenge(currentWordData) { 
     console.log("[gamePlayInterface.displayWordChallenge] Called. Resetting flags.");
@@ -45,60 +65,69 @@ function displayWordChallenge(currentWordData) {
     wordDisplayDiv.innerHTML = ''; // Clear previous content
     if(feedbackDiv) feedbackDiv.innerHTML = ''; // Clear previous feedback
 
-    if (currentWordData && currentWordData.word && currentWordData.sentencePrefix !== undefined && currentWordData.sentenceSuffix !== undefined) {
+    // Check for the new displayableWordParts property
+    if (currentWordData && currentWordData.displayableWordParts && currentWordData.sentencePrefix !== undefined && currentWordData.sentenceSuffix !== undefined) {
         // 1. Display sentence prefix
         const prefixDiv = document.createElement('div');
         prefixDiv.textContent = currentWordData.sentencePrefix;
-        prefixDiv.className = 'sentence-prefix sentence-segment'; // Ensure this class styles it as block/centered
+        prefixDiv.className = 'sentence-prefix sentence-segment'; 
         wordDisplayDiv.appendChild(prefixDiv);
 
-        // 2. Create and display input fields for the missing word
+        // 2. Create and display input fields for the missing word using displayableWordParts
         const wordGuessArea = document.createElement('div');
-        wordGuessArea.className = 'word-guess-area'; // Styles for centering, flex display
+        wordGuessArea.className = 'word-guess-area'; 
         
-        for (let i = 0; i < currentWordData.word.length; i++) {
+        currentWordData.displayableWordParts.forEach((part, index) => {
             const input = document.createElement('input');
             input.type = 'text';
-            input.className = 'inline-input'; // Use the existing style for single letter inputs
+            input.className = 'inline-input'; 
             input.maxLength = 1;
-            input.dataset.index = i; 
+            input.dataset.index = index; 
             input.setAttribute('autocomplete', 'off');
             input.setAttribute('autocorrect', 'off');
             input.setAttribute('autocapitalize', 'off');
             input.setAttribute('spellcheck', 'false');
-            
-            // Add event listeners directly to inputs for better control
-            input.addEventListener('keydown', handleInputKeydown);
-            input.addEventListener('input', handleInputChange); // For auto-focus next, and value manipulation
-            input.addEventListener('focus', (e) => {
-                currentFocusedInputIndex = parseInt(e.target.dataset.index);
-            });
 
+            if (!part.isHidden) { // If the letter is a hint (not hidden)
+                input.value = part.letter; // Pre-fill the letter
+                input.readOnly = true;    // Make it read-only
+                input.classList.add('hint-letter'); // Optional class for styling hints
+            } else { // Letter is hidden, user needs to guess
+                // Add event listeners only for active input fields
+                input.addEventListener('keydown', handleInputKeydown);
+                input.addEventListener('input', handleInputChange);
+                input.addEventListener('focus', (e) => {
+                    currentFocusedInputIndex = parseInt(e.target.dataset.index);
+                });
+            }
+            
             wordGuessArea.appendChild(input);
-            inputElements.push(input);
-        }
+            inputElements.push(input); // Still keep all inputs for reference, e.g. for checkAnswerInternal
+        });
         wordDisplayDiv.appendChild(wordGuessArea);
 
         // 3. Display sentence suffix
         const suffixDiv = document.createElement('div');
         suffixDiv.textContent = currentWordData.sentenceSuffix;
-        suffixDiv.className = 'sentence-suffix sentence-segment'; // Ensure this class styles it as block/centered
+        suffixDiv.className = 'sentence-suffix sentence-segment'; 
         wordDisplayDiv.appendChild(suffixDiv);
         
-        // Set initial focus on the first input element
-        if (inputElements.length > 0) {
-            currentFocusedInputIndex = 0;
+        // Set initial focus on the first *editable* input element
+        const firstEditableInput = inputElements.find(input => !input.readOnly);
+        if (firstEditableInput) {
+            firstEditableInput.focus();
+            currentFocusedInputIndex = parseInt(firstEditableInput.dataset.index);
+        } else if (inputElements.length > 0) {
+             // Fallback if all are read-only (e.g. 0% missing), focus first one anyway
             inputElements[0].focus();
+            currentFocusedInputIndex = 0;
         }
 
-        // Remove the global keydown listener if it exists from the previous letter-box implementation
         document.removeEventListener('keydown', handleGlobalKeydown); 
-        // Add a general keydown listener for Enter (to submit) and Space (to repeat) when inputs are not focused
-        // or for actions that are not input-specific.
         document.addEventListener('keydown', handleDocumentKeydown);
 
     } else {
-        wordDisplayDiv.textContent = 'Error: Word data is incomplete.';
+        wordDisplayDiv.textContent = 'Error: Word data is incomplete or missing displayableWordParts.';
         console.error("[gamePlayInterface.displayWordChallenge] Incomplete currentWordData:", currentWordData);
     }
 
@@ -112,8 +141,12 @@ function displayWordChallenge(currentWordData) {
 
 function focusInputElement(index) {
     if (index >= 0 && index < inputElements.length) {
-        inputElements[index].focus();
-        currentFocusedInputIndex = index;
+        // Ensure we only try to focus if the element exists and is focusable 
+        // (though readOnly inputs are focusable, the main goal is editable ones here)
+        if(inputElements[index]) {
+            inputElements[index].focus();
+            currentFocusedInputIndex = index; // Keep track of the numerically focused index
+        }
     }
 }
 
@@ -121,24 +154,25 @@ function handleInputChange(event) {
     const input = event.target;
     const index = parseInt(input.dataset.index);
 
-    // Force lowercase and keep only the first character
     input.value = input.value.toLowerCase().charAt(0);
 
-    // If a character was entered and it's not the last input, move to the next one
-    if (input.value && index < inputElements.length - 1) {
-        focusInputElement(index + 1);
+    if (input.value) { // If a character was entered
+        const nextEditableIndex = findNextEditableInputIndex(index);
+        if (nextEditableIndex !== -1) {
+            focusInputElement(nextEditableIndex);
+        }
+        // If no next editable input, focus might stay, or if it was the last actual input field, user might press Enter.
     }
 }
 
-// Keydown specifically for the input elements
 function handleInputKeydown(event) {
     const index = parseInt(event.target.dataset.index);
-    isProcessing = false; // Allow processing unless explicitly set by checkAnswer or continue
+    isProcessing = false; 
 
     if (event.key === 'Enter') {
-        event.preventDefault(); // Prevent form submission if inputs are in a form
-        if (waitingForContinue) { // If waiting for 'Enter' to continue to next word
-            isProcessing = true; // Prevent further input processing during transition
+        event.preventDefault();
+        if (waitingForContinue) { 
+            isProcessing = true; 
             waitingForContinue = false;
             document.removeEventListener('keydown', handleDocumentKeydown);
             if (requestNextWordFn) requestNextWordFn();
@@ -146,28 +180,32 @@ function handleInputKeydown(event) {
             checkAnswerInternal();
         }
     } else if (event.key === 'Backspace') {
-        if (!event.target.value && index > 0) { // If input is empty and not the first one, move to previous
-            event.preventDefault();
-            focusInputElement(index - 1);
+        if (!event.target.value && index >= 0) { // Check index >= 0 for safety
+            const prevEditableIndex = findPreviousEditableInputIndex(index);
+            if (prevEditableIndex !== -1) {
+                event.preventDefault();
+                focusInputElement(prevEditableIndex);
+            }
+            // If no previous editable (e.g., at the first editable input), default backspace behavior on empty field, or nothing.
         } 
-        // If it has value, normal backspace behavior will clear it. Then user can type or backspace again.
     } else if (event.key === 'ArrowLeft') {
-        if (index > 0) {
+        const prevEditableIndex = findPreviousEditableInputIndex(index);
+        if (prevEditableIndex !== -1) {
             event.preventDefault();
-            focusInputElement(index - 1);
+            focusInputElement(prevEditableIndex);
         }
     } else if (event.key === 'ArrowRight') {
-        if (index < inputElements.length - 1) {
+        const nextEditableIndex = findNextEditableInputIndex(index);
+        if (nextEditableIndex !== -1) {
             event.preventDefault();
-            focusInputElement(index + 1);
+            focusInputElement(nextEditableIndex);
         }
     } else if (event.key === ' ' || event.key === 'Spacebar') {
         event.preventDefault();
         if (repeatWordFn) repeatWordFn();
-    } else if (event.key.length === 1 && !event.key.match(/[a-z0-9]/i)) { // Allow only alpha-numeric
-        event.preventDefault(); // Prevent non-alphanumeric characters (except space handled above)
+    } else if (event.key.length === 1 && !event.key.match(/[a-z0-9]/i)) { 
+        event.preventDefault(); 
     }
-    // Let other keys (like letters) be handled by the input field itself and `handleInputChange`
 }
 
 // General keydown listener for the document (e.g., for space to repeat when inputs not focused, or global enter)
@@ -192,23 +230,34 @@ function handleGlobalKeydown(event) { /* ... This function should be removed ...
 
 function applyFeedbackToInputs(userAttemptString, expectedWordString) {
     userAttemptString = String(userAttemptString || '').toLowerCase();
-    expectedWordString = String(expectedWordString || ''); // Keep original case from game state
+    expectedWordString = String(expectedWordString || ''); 
     let allCorrect = true;
 
     for (let i = 0; i < inputElements.length; i++) {
         const input = inputElements[i];
         const expectedCharOriginal = expectedWordString[i] || '';
-        const userChar = userAttemptString[i] || '';
+        const userChar = userAttemptString[i] || ''; // This will include user's input for non-hints
 
-        input.value = expectedCharOriginal; // Show the correct letter
-        input.readOnly = true; // Make input readonly after checking
-        input.classList.remove('input-correct', 'input-incorrect'); // Clear previous feedback classes
-
-        if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
-            input.classList.add('input-incorrect');
-            allCorrect = false;
+        // If it was not a hint letter initially, apply feedback.
+        // Hint letters (readOnly) should retain their initial value and not get feedback classes for correctness/incorrectness of the hint itself.
+        if (!input.classList.contains('hint-letter')) {
+            input.value = expectedCharOriginal; // Show the correct letter for user-guessed spots
+            input.readOnly = true; // Make input readonly after checking
+            input.classList.remove('input-incorrect'); // Clear previous incorrect feedback class
+    
+            if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
+                input.classList.add('input-incorrect');
+                allCorrect = false;
+            }
+        } else {
+            // For hint letters, ensure they are still readOnly and show the original hint.
+            // Their value was already set and they are readOnly. No further action needed unless specific styling changes.
+            // If the original word from expectedWordString differs from the hint (should not happen with correct logic),
+            // this ensures the hint is preserved.
+            input.value = expectedCharOriginal; // Ensure it displays the definitive correct letter (which should be the hint)
+            // AllCorrect flag should consider if the user's input for non-hint parts matches.
+            // The loop structure correctly does this as `allCorrect` is only set to false if a non-hint character is wrong.
         }
-        // 'input-correct' class is no longer added for correct characters
     }
     return allCorrect;
 }

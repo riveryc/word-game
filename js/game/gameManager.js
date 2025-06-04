@@ -39,6 +39,8 @@ export function initializeGameManager(callbacks, config) {
         currentSelectedLevel = config.selectedLevel || currentSelectedLevel;
         currentSelectedWordCount = config.selectedWordCount || currentSelectedWordCount;
     }
+
+    console.log(`[gameManager.initializeGameManager] Using gameState instance ID: ${gameState.instanceId}`);
 }
 
 export function setGameConfig({ selectedLevel, selectedWordCount }) {
@@ -151,23 +153,29 @@ export function startRetryGame() {
 }
 
 function showNextWordInternal() {
+    // ---- START DEBUG LOG for gameManager ----
+    console.log(`[gameManager.showNextWordInternal] Accessing gameState instance ID: ${gameState.instanceId}`);
+    // ---- END DEBUG LOG for gameManager ----
+
     const currentWordData = gameState.getCurrentWord();
 
-    if (!currentWordData) {
-        console.error("GameManager: No current word from gameState to display.");
-        // This might mean the game has ended or an error occurred.
-        // Consider calling requestNextWordOrEndGameDisplay or a specific end game handler.
-        if (onShowFinalResultsUICallback) { // Fallback to showing results
-            const stats = gameState.getStatistics();
-            const gameDataForResults = gameState.exportGameData();
-            onShowFinalResultsUICallback(
-                gameDataForResults.results.map(r => r.word),
-                gameDataForResults.results,
-                stats.correctCount,
-                stats.totalWords,
-                isRetryMode,
-                gameState.getRetryWords() // Get current retry words if any
-            );
+    // ---- START Re-simplified DEBUG LOG ----
+    console.log("[gameManager.showNextWordInternal] Raw currentWordData from gameState:", currentWordData);
+    if (currentWordData) {
+        console.log("[gameManager.showNextWordInternal] currentWordData.hasOwnProperty('displayableWordParts') check:", currentWordData.hasOwnProperty('displayableWordParts'));
+    } else {
+        console.log("[gameManager.showNextWordInternal] currentWordData from gameState is null/undefined.");
+    }
+    // ---- END Re-simplified DEBUG LOG ----
+
+    if (!currentWordData || !currentWordData.displayableWordParts) { // Added check for displayableWordParts here
+        console.error("[gameManager.showNextWordInternal] Error: currentWordData is missing or missing displayableWordParts. Bailing out of showNextWordInternal.", currentWordData);
+        // Potentially call a UI error display function here
+        if (onShowNextWordUICallback) { // If UI callback exists, show an error state through it.
+            onShowNextWordUICallback({ 
+                error: "Critical error: Word data is incomplete.", 
+                sentencePrefix: "Error", word:"loading", sentenceSuffix: "word.", displayableWordParts: [] 
+            });
         }
         return;
     }
@@ -183,13 +191,12 @@ function showNextWordInternal() {
 
     const progress = gameState.getProgress();
     const uiData = {
-        // Directly use properties from currentWordData (processed by gameState)
         sentencePrefix: currentWordData.sentencePrefix,
-        word: currentWordData.word, // This is the target word string
+        word: currentWordData.word, 
         sentenceSuffix: currentWordData.sentenceSuffix,
+        displayableWordParts: currentWordData.displayableWordParts,
         hintText: currentWordData.description || '',
         progressText: `Word ${progress.currentWordIndex + 1} of ${progress.totalWords}`,
-        // description: currentWordData.description, // already in hintText
     };
 
     if (onShowNextWordUICallback) {
