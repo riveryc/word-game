@@ -3,8 +3,8 @@
 // Module-specific state for the game play interface
 let waitingForContinue = false;
 let isProcessing = false;
-// let isGamePlayActiveForFocus = false; // Focus lock logic may need to be re-evaluated or simplified
-// let boundHandleDocumentClickForFocus = null; 
+let isGamePlayActiveForFocus = false; // Re-enabled
+let boundHandleDocumentClickForFocus = null; // Re-enabled
 
 // References to functions from other modules, to be set during initialization
 let processAnswerFn = null;
@@ -46,6 +46,45 @@ function findPreviousEditableInputIndex(currentIndex) {
     return -1; // No previous editable input found
 }
 
+// Refined function to handle document clicks for focus lock
+function handleDocumentClickForFocus(event) {
+    if (!isGamePlayActiveForFocus || isProcessing || waitingForContinue) {
+        return; // Lock not active or game is processing
+    }
+
+    const target = event.target;
+
+    // Check if the click target is an interactive element within the game interface
+    // or an input element itself.
+    if (inputElements.includes(target) || // Clicked on one of our known input elements
+        (target.closest && target.closest('#game-interface') && // Is the click target inside the game-interface?
+         (target.nodeName === 'BUTTON' || target.classList.contains('repeat-button')) // And is it a button?
+        )
+       ) {
+        // If the click is on a known input or a button inside the game-interface,
+        // let the browser handle the focus naturally.
+        // The 'focus' event listener on individual inputs should handle updating currentFocusedInputIndex.
+        console.log("[gamePlayInterface.handleDocumentClickForFocus] Click on interactive element or input. No refocus.");
+        return; 
+    }
+
+    // If the click was outside interactive elements, refocus.
+    console.log("[gamePlayInterface.handleDocumentClickForFocus] Click detected outside inputs. Refocusing.");
+    // Attempt to focus the last known focused *editable* input first
+    if (currentFocusedInputIndex !== -1 && 
+        inputElements[currentFocusedInputIndex] && 
+        !inputElements[currentFocusedInputIndex].readOnly) {
+        focusInputElement(currentFocusedInputIndex);
+    } else {
+        // Fallback to the first *editable* input
+        const firstEditableInput = inputElements.find(input => !input.readOnly);
+        if (firstEditableInput) {
+            // focusInputElement will call .focus() and update currentFocusedInputIndex
+            focusInputElement(inputElements.indexOf(firstEditableInput)); 
+        }
+    }
+}
+
 // Function to display the word challenge
 function displayWordChallenge(currentWordData) { 
     console.log("[gamePlayInterface.displayWordChallenge] Called. Resetting flags.");
@@ -83,7 +122,6 @@ function displayWordChallenge(currentWordData) {
     wordDisplayDiv.innerHTML = ''; // Clear previous content
     if(feedbackDiv) feedbackDiv.innerHTML = ''; // Clear previous feedback
 
-    // Check for the new displayableWordParts property
     if (currentWordData && currentWordData.displayableWordParts && currentWordData.sentencePrefix !== undefined && currentWordData.sentenceSuffix !== undefined) {
         // 1. Display sentence prefix
         const prefixDiv = document.createElement('div');
@@ -144,6 +182,15 @@ function displayWordChallenge(currentWordData) {
         document.removeEventListener('keydown', handleGlobalKeydown); 
         document.addEventListener('keydown', handleDocumentKeydown);
 
+        // Activate focus lock
+        isGamePlayActiveForFocus = true;
+        if (!boundHandleDocumentClickForFocus) {
+            boundHandleDocumentClickForFocus = handleDocumentClickForFocus.bind(this);
+        }
+        document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
+        document.addEventListener('click', boundHandleDocumentClickForFocus, true);
+        console.log("[gamePlayInterface.displayWordChallenge] Focus lock ACTIVATED.");
+
     } else {
         wordDisplayDiv.textContent = 'Error: Word data is incomplete or missing displayableWordParts.';
         console.error("[gamePlayInterface.displayWordChallenge] Incomplete currentWordData:", currentWordData);
@@ -191,26 +238,21 @@ function handleInputChange(event) {
 
 function handleInputKeydown(event) {
     const index = parseInt(event.target.dataset.index);
-    // isProcessing = false; // This was moved to be set only if not Enter+waitingForContinue
 
     if (event.key === 'Enter') {
-        console.log("[gamePlayInterface.handleInputKeydown] Enter pressed. waitingForContinue:", waitingForContinue);
         event.preventDefault(); 
         if (waitingForContinue) { 
-            console.log("[gamePlayInterface.handleInputKeydown] Waiting for continue is true. Processing next word.");
+            // Deactivate focus lock before moving to next word/results
+            deactivateGamePlayFocusLock(); 
             isProcessing = true; 
             waitingForContinue = false;
             document.removeEventListener('keydown', handleDocumentKeydown);
-            console.log("[gamePlayInterface.handleInputKeydown] Removed document listener for handleDocumentKeydown.");
             if (requestNextWordFn) {
-                console.log("[gamePlayInterface.handleInputKeydown] Calling requestNextWordFn.");
                 requestNextWordFn();
             } else {
                 console.error("[gamePlayInterface.handleInputKeydown] requestNextWordFn is null!");
             }
         } else {
-            console.log("[gamePlayInterface.handleInputKeydown] Not waiting for continue. Calling checkAnswerInternal.");
-            isProcessing = false; // Ensure isProcessing is false if we are submitting an answer
             checkAnswerInternal();
         }
     } else if (event.key === 'Backspace') {
@@ -250,22 +292,16 @@ function handleInputKeydown(event) {
     }
 }
 
-// General keydown listener for the document (e.g., for space to repeat when inputs not focused, or global enter)
 function handleDocumentKeydown(event) {
-    console.log("[gamePlayInterface.handleDocumentKeydown] Keydown event on document:", event.key);
-    if (event.target.nodeName === 'INPUT') {
-        console.log("[gamePlayInterface.handleDocumentKeydown] Event target is INPUT, returning.");
-        return; // Already handled by handleInputKeydown
-    }
+    if (event.target.nodeName === 'INPUT') return;
 
     if (event.key === 'Enter' && waitingForContinue) {
-        console.log("[gamePlayInterface.handleDocumentKeydown] Enter pressed on document. waitingForContinue:", waitingForContinue);
+        // Deactivate focus lock before moving to next word/results
+        deactivateGamePlayFocusLock();
         isProcessing = true;
         waitingForContinue = false;
         document.removeEventListener('keydown', handleDocumentKeydown);
-        console.log("[gamePlayInterface.handleDocumentKeydown] Removed self (document listener for handleDocumentKeydown).");
         if (requestNextWordFn) {
-            console.log("[gamePlayInterface.handleDocumentKeydown] Calling requestNextWordFn.");
             requestNextWordFn();
         } else {
             console.error("[gamePlayInterface.handleDocumentKeydown] requestNextWordFn is null!");
@@ -371,6 +407,9 @@ function checkAnswerInternal() {
 
 
 export function clearGamePlayUI() {
+    // Deactivate focus lock when clearing UI
+    deactivateGamePlayFocusLock();
+
     if (gameInterfaceDiv) gameInterfaceDiv.style.display = 'none';
     if (wordDisplayDiv) wordDisplayDiv.innerHTML = '';
     if (progressDiv) progressDiv.textContent = '';
@@ -387,11 +426,12 @@ export function clearGamePlayUI() {
 }
 
 export function deactivateGamePlayFocusLock() {
-    // isGamePlayActiveForFocus = false;
-    // if (boundHandleDocumentClickForFocus) {
-    //     document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
-    //     console.log("[gamePlayInterface.js] Focus lock event listener REMOVED via deactivate.");
-    // }
+    // Re-enable the original logic
+    isGamePlayActiveForFocus = false;
+    if (boundHandleDocumentClickForFocus) {
+        document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
+        console.log("[gamePlayInterface.js] Focus lock event listener REMOVED via deactivate.");
+    }
 }
 
 export function initializeGamePlayInterface(callbacks) {

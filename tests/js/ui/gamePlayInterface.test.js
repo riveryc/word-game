@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { displayWordChallenge, resetUIStateForTesting } from '../../../js/ui/gamePlayInterface'; // Adjust path as necessary
+import { displayWordChallenge, initializeGamePlayInterface, resetUIStateForTesting, clearGamePlayUI, deactivateGamePlayFocusLock } from '../../../js/ui/gamePlayInterface'; // Adjust path as necessary
 
 describe('Game Play Interface - Input Handling (via handleInputChange)', () => {
     let mockInput;
@@ -18,21 +18,30 @@ describe('Game Play Interface - Input Handling (via handleInputChange)', () => {
         const mockProgress = document.createElement('div');
         mockProgress.id = 'progress';
         mockRootElement.appendChild(mockProgress);
-        const mockDescription = document.createElement('div');
-        mockDescription.id = 'word-description';
-        mockRootElement.appendChild(mockDescription);
         const mockFeedback = document.createElement('div');
         mockFeedback.id = 'feedback';
         mockRootElement.appendChild(mockFeedback);
 
+        const currentWord = "a";
         const currentWordData = {
-            word: "a", 
+            word: currentWord, 
             sentencePrefix: "Test ",
             sentenceSuffix: " sentence.",
+            displayableWordParts: currentWord.split('').map(char => ({ letter: char, isHidden: true })),
             progressText: '', 
             hintText: '' 
         };
         
+        const mockInitCallbacks = {
+            processAnswer: vi.fn(),
+            requestNextWordOrEndGameDisplay: vi.fn(),
+            getTimerEvaluationContext: vi.fn(() => ({ currentWordTimeoutThreshold: 0 })),
+            stopWordTimer: vi.fn(),
+            startWordTimer: vi.fn(),
+            repeatWord: vi.fn()
+        };
+        initializeGamePlayInterface(mockInitCallbacks);
+
         displayWordChallenge(currentWordData);
 
         // Corrected selector: input is inside .word-guess-area which is inside #word-display
@@ -49,6 +58,7 @@ describe('Game Play Interface - Input Handling (via handleInputChange)', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        deactivateGamePlayFocusLock();
         document.body.innerHTML = ''; // Clean up DOM
         resetUIStateForTesting(); // Call the reset function here
     });
@@ -69,5 +79,174 @@ describe('Game Play Interface - Input Handling (via handleInputChange)', () => {
         mockInput.value = '';
         mockInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         expect(mockInput.value).toBe('');
+    });
+}); 
+
+// New test suite for Focus Lock Mechanism
+describe('Game Play Interface - Focus Lock Mechanism', () => {
+    let gameInterfaceDiv, wordDisplayDiv, progressDiv, feedbackDiv;
+    let outsideElement;
+    let mockCallbacks;
+
+    beforeEach(() => {
+        // DOM Setup
+        gameInterfaceDiv = document.createElement('div');
+        gameInterfaceDiv.id = 'game-interface';
+        wordDisplayDiv = document.createElement('div');
+        wordDisplayDiv.id = 'word-display';
+        gameInterfaceDiv.appendChild(wordDisplayDiv);
+
+        progressDiv = document.createElement('div');
+        progressDiv.id = 'progress';
+        gameInterfaceDiv.appendChild(progressDiv);
+
+        feedbackDiv = document.createElement('div');
+        feedbackDiv.id = 'feedback';
+        gameInterfaceDiv.appendChild(feedbackDiv);
+        
+        document.body.appendChild(gameInterfaceDiv);
+
+        outsideElement = document.createElement('div');
+        outsideElement.id = 'outside-element';
+        document.body.appendChild(outsideElement);
+
+        mockCallbacks = {
+            processAnswer: vi.fn(),
+            requestNextWordOrEndGameDisplay: vi.fn(),
+            getTimerEvaluationContext: vi.fn(() => ({ currentWordTimeoutThreshold: 0 })),
+            stopWordTimer: vi.fn(),
+            startWordTimer: vi.fn(),
+            repeatWord: vi.fn()
+        };
+        initializeGamePlayInterface(mockCallbacks);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        deactivateGamePlayFocusLock(); 
+        document.body.innerHTML = ''; 
+        resetUIStateForTesting();
+    });
+
+    const createSampleWordData = (word = "test", hints = []) => {
+        // Ensure hints array matches word length, defaulting to no hints (all hidden)
+        const finalHints = hints.length === word.length ? hints : Array(word.length).fill(false);
+        return {
+            word: word,
+            sentencePrefix: "Prefix ",
+            sentenceSuffix: " Suffix.",
+            displayableWordParts: word.split('').map((letter, i) => ({ letter, isHidden: !finalHints[i] })),
+            progressText: '1/10',
+            hintText: 'A hint'
+        };
+    };
+
+    it('should activate focus lock and refocus on the first editable input when clicking outside', () => {
+        const wordData = createSampleWordData("focus", [false, false, false, false, true]); 
+        displayWordChallenge(wordData);
+        const inputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
+        const firstEditableInput = inputs.find(input => !input.readOnly);
+        expect(firstEditableInput, 'First editable input should exist').not.toBeNull();
+        if (!firstEditableInput) return;
+        expect(document.activeElement, 'Initial focus should be on first editable input').toBe(firstEditableInput);
+        const focusSpy = vi.spyOn(firstEditableInput, 'focus');
+        firstEditableInput.blur(); // Simulate losing focus
+        expect(document.activeElement, 'Focus should be lost after blur').not.toBe(firstEditableInput);
+        outsideElement.click(); // Click outside
+        expect(focusSpy, 'focus() on first editable input should have been called after outside click').toHaveBeenCalled();
+        // Since focusInputElement updates currentFocusedInputIndex, let's verify the state
+        // This part depends on internal state, might be too brittle, but good for sanity check
+        // expect(getCurrentFocusedInputIndexForTesting(), 'currentFocusedInputIndex should be updated').toBe(inputs.indexOf(firstEditableInput));
+        focusSpy.mockRestore();
+    });
+
+    it('should not refocus if click is on another editable input element', () => {
+        const wordData = createSampleWordData("clicks"); // All editable
+        displayWordChallenge(wordData);
+
+        const inputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
+        const firstInput = inputs[0];
+        const secondInput = inputs[1];
+
+        expect(document.activeElement, 'Initial focus should be on the first input').toBe(firstInput);
+
+        const firstInputFocusSpy = vi.spyOn(firstInput, 'focus');
+        // const secondInputFocusSpy = vi.spyOn(secondInput, 'focus'); // JSDOM's click() doesn't reliably call focus()
+
+        secondInput.click(); 
+        // The console log "[gamePlayInterface.handleDocumentClickForFocus] Click on interactive element or input. No refocus." should appear.
+        
+        // Crucially, ensure the focus lock didn't pull focus BACK to the first input.
+        // This is the primary test of the lock's behavior in this scenario.
+        expect(firstInputFocusSpy, 'focus() on firstInput should NOT have been called by focus lock').not.toHaveBeenCalled();
+        
+        // Verifying document.activeElement is secondInput is unreliable in JSDOM after a simple .click()
+        // if (!firstInputFocusSpy.mock.calls.length) { // Only check activeElement if firstInput was not refocused
+        //    expect(document.activeElement, 'Focus ideally would be secondInput, but JSDOM is quirky').toBe(secondInput);
+        // }
+
+        firstInputFocusSpy.mockRestore();
+        // secondInputFocusSpy.mockRestore();
+    });
+    
+    it('should not refocus if click is on a button within game-interface (e.g. repeat button)', () => {
+        const wordData = createSampleWordData("button");
+        displayWordChallenge(wordData);
+
+        const inputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
+        const firstInput = inputs.find(input => !input.readOnly);
+        expect(firstInput, 'First input should exist').not.toBeNull();
+        if(!firstInput) return;
+
+        expect(document.activeElement, 'Initial focus should be on first input').toBe(firstInput);
+
+        const repeatButton = document.createElement('button');
+        repeatButton.id = 'repeat-button'; 
+        repeatButton.className = 'repeat-button'; 
+        repeatButton.setAttribute('tabindex', '0'); 
+        gameInterfaceDiv.appendChild(repeatButton); 
+
+        const firstInputFocusSpy = vi.spyOn(firstInput, 'focus');
+
+        repeatButton.click(); 
+        // The console log "[gamePlayInterface.handleDocumentClickForFocus] Click on interactive element or input. No refocus." should appear.
+
+        // The critical check: focus lock should not have refocused the first input.
+        expect(firstInputFocusSpy, 'Focus spy on first input should not have been called by focus lock').not.toHaveBeenCalled(); 
+        
+        // Checking document.activeElement is unreliable for this test's primary purpose.
+        // If firstInputFocusSpy was not called, our lock mechanism worked correctly.
+        // The fact that activeElement might still be firstInput is a JSDOM behavior,
+        // not a failure of the lock to ignore the button click.
+        // expect(document.activeElement, 'Focus should NOT be the input if JSDOM updated activeElement from button click').not.toBe(firstInput);
+        
+        firstInputFocusSpy.mockRestore();
+    });
+
+    it('should deactivate focus lock when clearGamePlayUI is called', () => {
+        const wordData = createSampleWordData("clear");
+        displayWordChallenge(wordData); 
+        const inputs = Array.from(wordDisplayDiv.querySelectorAll('.inline-input'));
+        const firstEditableInput = inputs.find(input => !input.readOnly);
+        expect(firstEditableInput, 'Test setup: first editable input should exist').not.toBeNull();
+        if (!firstEditableInput) return;
+        
+        const focusSpy = vi.spyOn(firstEditableInput, 'focus');
+        const removeListenerSpy = vi.spyOn(document, 'removeEventListener');
+        
+        clearGamePlayUI();
+        
+        expect(removeListenerSpy).toHaveBeenCalledWith('click', expect.any(Function), true);
+        
+        // To test deactivation, ensure clicking outside no longer calls focus
+        if (document.activeElement === firstEditableInput) { // If focus is still there
+             firstEditableInput.blur(); // Explicitly blur it
+        }
+        outsideElement.click(); 
+        
+        expect(focusSpy, 'Focus should not return to input after lock is deactivated').not.toHaveBeenCalled(); 
+        
+        focusSpy.mockRestore();
+        removeListenerSpy.mockRestore();
     });
 }); 
