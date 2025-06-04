@@ -132,6 +132,8 @@ function displayWordChallenge(currentWordData) {
         // 2. Create and display input fields for the missing word using displayableWordParts
         const wordGuessArea = document.createElement('div');
         wordGuessArea.className = 'word-guess-area'; 
+        wordGuessArea.style.display = 'flex'; // Ensure flex layout for children
+        wordGuessArea.style.alignItems = 'baseline'; // Align children on their baseline
         
         currentWordData.displayableWordParts.forEach((part, index) => {
             const input = document.createElement('input');
@@ -163,10 +165,18 @@ function displayWordChallenge(currentWordData) {
         wordDisplayDiv.appendChild(wordGuessArea);
 
         // 3. Display sentence suffix
-        const suffixDiv = document.createElement('div');
-        suffixDiv.textContent = currentWordData.sentenceSuffix;
-        suffixDiv.className = 'sentence-suffix sentence-segment'; 
-        wordDisplayDiv.appendChild(suffixDiv);
+        if (currentWordData.sentenceSuffix === '.') {
+            const periodSpan = document.createElement('span');
+            periodSpan.textContent = '.';
+            // Font size should be inherited. Baseline alignment is handled by parent.
+            wordGuessArea.appendChild(periodSpan); 
+        } else if (currentWordData.sentenceSuffix && currentWordData.sentenceSuffix.length > 0) {
+            // If suffix is not just a period, or is more than a period, create the standard suffix div
+            const suffixDiv = document.createElement('div');
+            suffixDiv.textContent = currentWordData.sentenceSuffix;
+            suffixDiv.className = 'sentence-suffix sentence-segment'; 
+            wordDisplayDiv.appendChild(suffixDiv);
+        }
         
         // Set initial focus on the first *editable* input element
         const firstEditableInput = inputElements.find(input => !input.readOnly);
@@ -205,8 +215,9 @@ function displayWordChallenge(currentWordData) {
         console.log("[gamePlayInterface.displayWordChallenge] wordDescriptionDiv is null, not setting hint/description.");
     }
 
-    if (startWordTimerFn && currentWordData && currentWordData.word) {
-        startWordTimerFn(currentWordData.word.length); 
+    if (startWordTimerFn && currentWordData && currentWordData.word && currentWordData.displayableWordParts) {
+        const missingLetterCount = currentWordData.displayableWordParts.filter(part => part.isHidden).length;
+        startWordTimerFn(missingLetterCount > 0 ? missingLetterCount : 1); // Ensure at least 1 if no letters are hidden but timer is on
     }
 }
 

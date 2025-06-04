@@ -1,8 +1,9 @@
 import { shuffleArray } from '../utils/helpers.js';
 // import { hideWordInSentence } from '../utils/sentenceUtils.js'; // Likely unused now
-// import { getTimerEvaluationContext } from './timerManager.js'; // Might be handled by gameState or re-evaluated
+import { getTimerEvaluationContext } from './timerManager.js'; // Might be handled by gameState or re-evaluated
 import { gameState } from './gameState.js'; // Import the global gameState instance
 import { audioManager } from '../audio/audioManager.js'; // ADDED IMPORT
+import { RESULT_TYPES } from '../app/config.js';
 
 // Game State (local gameManager state is now minimized, gameState is primary)
 // let gameWords = []; // Handled by gameState
@@ -255,14 +256,22 @@ export function processAnswer(userAnswerString, timeTaken) {
     const correctAnswer = currentWordData.word;
     const isCorrectBase = userAnswerString.toLowerCase() === correctAnswer.toLowerCase();
 
-    // Simplified result type determination for now. Timing logic will be complex.
-    // TODO: Integrate with timerManager and gameState timing configuration for proper 'timeout' status.
-    // For now, focusing on 'success' or 'incorrect'.
-    let resultType = isCorrectBase ? 'success' : 'incorrect'; 
-    // let resultType = RESULT_TYPES.PENDING; // from config.js
-    // if (isCorrectBase) resultType = RESULT_TYPES.SUCCESS;
-    // else resultType = RESULT_TYPES.INCORRECT;
-    // Later, this will be: resultType = evaluateAnswerWithTimingInternal(...)
+    const { hasTimeLimit, currentWordTimeoutThreshold } = getTimerEvaluationContext();
+    let resultType;
+
+    if (isCorrectBase) {
+        if (hasTimeLimit && timeTaken > currentWordTimeoutThreshold) {
+            resultType = RESULT_TYPES.TIMEOUT; // Correct but slow
+        } else {
+            resultType = RESULT_TYPES.SUCCESS; // Correct and within time (or no time limit)
+        }
+    } else { // Incorrect
+        if (hasTimeLimit && timeTaken > currentWordTimeoutThreshold) {
+            resultType = RESULT_TYPES.TIMEOUT_INCORRECT; // Incorrect and timed out
+        } else {
+            resultType = RESULT_TYPES.INCORRECT; // Incorrect and within time (or no time limit)
+        }
+    }
 
     gameState.recordResult(userAnswerString, resultType, timeTaken); // gameState handles results internally
 
