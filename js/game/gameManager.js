@@ -231,12 +231,12 @@ export function requestNextWordOrEndGameDisplay() {
         
         if (onShowFinalResultsUICallback) {
             onShowFinalResultsUICallback(
-                gameDataForResults.results.map(r => r.word),
-                gameDataForResults.results, 
-                stats.correctCount,
-                stats.totalWords,
-                isRetryMode,
-                gameState.getRetryWords()
+                gameDataForResults.results,                          // Actual result items for wordResults
+                gameState.getRetryWords(),                           // Retry words for wordRetryDataFromManager
+                stats.correctCount,                                  // correctAnswers
+                stats.totalWords,                                    // totalWordsInGame
+                isRetryMode,                                         // isRetryModeFlag
+                gameDataForResults.results.map(r => r.word)          // Array of full word objects for gameWordObjectsForResults
             );
         }
         if (onUpdateBackButtonVisibilityCallback) onUpdateBackButtonVisibilityCallback(true);

@@ -95,8 +95,8 @@ function setupApplication() {
                                    { word: res.word, description: '', exampleSentence: '' }; 
             return {
                 word: gameWordObject.word,
-                status: res.result, 
-                time: res.timeElapsed.toFixed(1) + 's',
+                status: res.resultType,
+                time: res.elapsedTime.toFixed(1) + 's',
                 description: gameWordObject.description,
                 exampleSentence: gameWordObject.exampleSentence
             };

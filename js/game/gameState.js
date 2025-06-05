@@ -402,6 +402,26 @@ export class GameState {
         // Use retry words as the new game words
         this.gameWords = shuffleArray([...this.retryWords]);
         this.retryWords = []; // Clear retry list
+
+        // Regenerate puzzle for each word in the retry session for randomness
+        const currentLevelConfig = GAME_CONFIG.LEVELS[this.level];
+        const missingPercentage = currentLevelConfig ? currentLevelConfig.missingPercentage : 100;
+
+        this.gameWords = this.gameWords.map(wordObj => {
+            if (wordObj && typeof wordObj.word === 'string' && wordObj.word.length > 0) {
+                const targetWord = wordObj.word;
+                try {
+                    const puzzle = this.wordGenerator.createWordPuzzle(targetWord.toLowerCase(), missingPercentage);
+                    wordObj.displayableWordParts = puzzle && puzzle.puzzleLetters ? puzzle.puzzleLetters : [];
+                    // Sentence prefix/suffix are assumed to be still valid from original word object preparation
+                    console.log(`[GameState startRetrySession] Regenerated puzzle for ${wordObj._debug_id || targetWord}`);
+                } catch (e) {
+                    console.error(`[GameState startRetrySession] Error creating puzzle for ${wordObj._debug_id || targetWord} during retry:`, e);
+                    wordObj.displayableWordParts = []; // Fallback
+                }
+            }
+            return wordObj;
+        });
         
         // Reset game state for retry
         this.currentWordIndex = 0;
