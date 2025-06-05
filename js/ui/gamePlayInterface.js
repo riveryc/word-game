@@ -247,6 +247,35 @@ function handleInputChange(event) {
     }
 }
 
+// Helper function to show warning for incomplete input submission
+let fillInputsWarningTimeout = null;
+let shakeTimeout = null;
+
+function showFillAllInputsWarning() {
+    if (!feedbackDiv) feedbackDiv = document.getElementById('feedback');
+    const wordGuessContainer = document.querySelector('.word-guess-area');
+
+    if (feedbackDiv) {
+        feedbackDiv.innerHTML = '<span class="warning-feedback">Please fill all missing letters before pressing Enter.</span>';
+        // Clear previous timeout if any
+        if (fillInputsWarningTimeout) clearTimeout(fillInputsWarningTimeout);
+        fillInputsWarningTimeout = setTimeout(() => {
+            if (feedbackDiv && feedbackDiv.innerHTML.includes('Please fill all missing letters')) {
+                feedbackDiv.innerHTML = '';
+            }
+        }, 3000);
+    }
+
+    if (wordGuessContainer) {
+        wordGuessContainer.classList.add('shake');
+        // Clear previous timeout if any
+        if (shakeTimeout) clearTimeout(shakeTimeout);
+        shakeTimeout = setTimeout(() => {
+            wordGuessContainer.classList.remove('shake');
+        }, 500); // Match CSS animation duration
+    }
+}
+
 function handleInputKeydown(event) {
     const index = parseInt(event.target.dataset.index);
 
@@ -264,6 +293,12 @@ function handleInputKeydown(event) {
                 console.error("[gamePlayInterface.handleInputKeydown] requestNextWordFn is null!");
             }
         } else {
+            // Check if all editable inputs are filled
+            const allEditableFilled = inputElements.every(input => input.readOnly || input.value.trim() !== '');
+            if (!allEditableFilled) {
+                showFillAllInputsWarning();
+                return; // Stop further processing
+            }
             checkAnswerInternal();
         }
     } else if (event.key === 'Backspace') {

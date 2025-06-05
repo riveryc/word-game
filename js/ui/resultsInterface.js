@@ -112,7 +112,7 @@ export function showFinalResults(correctAnswers, totalWordsInGame, resultsData, 
     if (canRetry) {
         const retryButton = document.getElementById('results-retry-button');
         if (retryButton) {
-            retryButton.addEventListener('click', startRetryGameInManager);
+            retryButton.addEventListener('click', initiateRetryFlow);
             console.log("[resultsInterface.showFinalResults] Event listener for 'Retry' button ADDED.");
         } else {
             console.error("[resultsInterface.showFinalResults] 'Retry' button not found for event listener (when canRetry is true).");
@@ -121,6 +121,18 @@ export function showFinalResults(correctAnswers, totalWordsInGame, resultsData, 
         setTimeout(() => addRetryKeyboardShortcut(), 100);
         console.log("[resultsInterface.showFinalResults] Keyboard shortcut for retry will be ADDED via setTimeout.");
     }
+}
+
+// New function to handle UI changes and start retry
+function initiateRetryFlow() {
+    const finalResultsDiv = document.getElementById('final-results');
+    const gameInterfaceDiv = document.getElementById('game-interface');
+
+    if (finalResultsDiv) finalResultsDiv.style.display = 'none';
+    if (gameInterfaceDiv) gameInterfaceDiv.style.display = 'block';
+    
+    removeRetryKeyboardShortcut(); // Remove listener to prevent multiple triggers if user hits Enter quickly
+    startRetryGameInManager(); // from gameManager
 }
 
 // Restart game function (goes back to data source selection)
@@ -156,7 +168,7 @@ export function handleRetryKeydown(event) {
             const status = getGameStatusForRetry(); // from gameManager
             if (status.canRetry) {
                 event.preventDefault();
-                startRetryGameInManager(); // from gameManager
+                initiateRetryFlow(); // Changed to initiateRetryFlow
             } else {
                 event.preventDefault();
                 restartGame(); // local restartGame function
