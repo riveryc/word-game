@@ -4,7 +4,7 @@ import json
 from unittest import mock
 import requests # Import for requests.exceptions
 import urllib.parse # Make sure this is imported
-from server import app, AUDIO_CACHE_DIR as SERVER_DEFAULT_AUDIO_CACHE_DIR, DICTIONARY_API_URL_TEMPLATE # Import with alias for clarity
+from server import app, AUDIO_CACHE_DIR as SERVER_DEFAULT_AUDIO_CACHE_DIR, normalize_word
 import server # To allow monkeypatching server.AUDIO_CACHE_DIR
 
 # Helper for word normalization (mirroring design doc expectation)
@@ -49,13 +49,13 @@ def test_cache_audio_new_word_google_success(mock_open_file, mock_os_exists, moc
     mock_google_response.status_code = 200
     mock_google_response.content = b'mp3_data_google'
     mock_requests_get.return_value = mock_google_response
-    response = client.post('/api/cache_audio', json={'word': word})
+    response = client.post('/api/audio-cache', json={'word': word})
     data = json.loads(response.data)
     assert response.status_code in [200, 201]
     assert data['message'] == f"Audio for '{word}' cached successfully from Google."
     assert data['file'] == google_filename
     assert data['method_used'] == 'google'
-    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={normalized}&tl=en&client=tw-ob"
+    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(word)}&tl=en&client=tw-ob"
     mock_requests_get.assert_called_once_with(
         expected_google_url,
         headers={'Referer': expected_google_url},
@@ -64,203 +64,29 @@ def test_cache_audio_new_word_google_success(mock_open_file, mock_os_exists, moc
     mock_open_file.assert_called_once_with(os.path.join(server.AUDIO_CACHE_DIR, google_filename), 'wb')
     mock_open_file().write.assert_called_once_with(b'mp3_data_google')
 
-# Test Case 2: New word - Google Fails, Dictionary Success (Updated for two-step dictionary fetch)
+# Test Case 2: New word - Google Fails
 @mock.patch('server.requests.get')
 @mock.patch('server.os.path.exists')
 @mock.patch('builtins.open', new_callable=mock.mock_open)
-def test_cache_audio_google_fails_dictionary_success(mock_open_file, mock_os_exists, mock_requests_get, client):
-    word = "dictword"
-    normalized = normalize_word(word)
-    dict_filename = f"dictionary_{normalized}.mp3"
-    mock_os_exists.return_value = False # No cache files exist
-
-    # Mock Google failure
-    mock_google_failure = mock.Mock()
-    mock_google_failure.status_code = 500
-    mock_google_failure.text = "Google Server Error"
-    mock_google_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked Google HTTP Error")
-
-    # Mock Dictionary metadata success with a valid audio URL
-    valid_audio_mp3_url = "https://example.com/audio/dictword.mp3"
-    mock_dict_metadata_success = mock.Mock()
-    mock_dict_metadata_success.status_code = 200
-    mock_dict_metadata_success.json.return_value = [
-        {"phonetics": [
-            {"audio": ""}, 
-            {"audio": valid_audio_mp3_url}
-        ]}
-    ]
-    # mock_dict_metadata_success.raise_for_status = mock.Mock() # Not needed if status_code < 400
-
-    # Mock Dictionary MP3 download success
-    mock_dict_mp3_download_success = mock.Mock()
-    mock_dict_mp3_download_success.status_code = 200
-    mock_dict_mp3_download_success.content = b'mp3_data_dictionary'
-    # mock_dict_mp3_download_success.raise_for_status = mock.Mock()
-
-    mock_requests_get.side_effect = [
-        mock_google_failure, 
-        mock_dict_metadata_success, 
-        mock_dict_mp3_download_success
-    ]
-
-    response = client.post('/api/cache_audio', json={'word': word})
-    data = json.loads(response.data)
-
-    assert response.status_code in [200, 201]
-    assert data['message'] == f"Audio for '{word}' cached successfully from Dictionary."
-    assert data['file'] == dict_filename
-    assert data['method_used'] == 'dictionary'
-
-    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={normalized}&tl=en&client=tw-ob"
-    expected_dict_metadata_url = DICTIONARY_API_URL_TEMPLATE.format(word=urllib.parse.quote(normalized))
-    
-    calls = [
-        mock.call(expected_google_url, headers={'Referer': expected_google_url}, timeout=10),
-        mock.call(expected_dict_metadata_url, timeout=10),
-        mock.call(valid_audio_mp3_url, timeout=10)
-    ]
-    mock_requests_get.assert_has_calls(calls, any_order=False)
-    assert mock_requests_get.call_count == 3
-
-    mock_open_file.assert_called_once_with(os.path.join(server.AUDIO_CACHE_DIR, dict_filename), 'wb')
-    mock_open_file().write.assert_called_once_with(b'mp3_data_dictionary')
-
-# Test Case 3: New word - Both Google and Dictionary Fail (Dictionary metadata itself fails)
-@mock.patch('server.requests.get')
-@mock.patch('server.os.path.exists')
-@mock.patch('builtins.open', new_callable=mock.mock_open)
-def test_cache_audio_all_sources_fail_dict_metadata_fails(mock_open_file, mock_os_exists, mock_requests_get, client):
+def test_cache_audio_google_fails(mock_open_file, mock_os_exists, mock_requests_get, client):
     word = "failword"
-    normalized = normalize_word(word)
     mock_os_exists.return_value = False
 
     mock_google_failure = mock.Mock()
     mock_google_failure.status_code = 503
-    mock_google_failure.text = "Google Unavailable"
     mock_google_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked Google HTTP Error")
+    mock_requests_get.return_value = mock_google_failure
 
-    mock_dict_metadata_failure = mock.Mock()
-    mock_dict_metadata_failure.status_code = 404 # Dictionary API returns 404 for metadata
-    mock_dict_metadata_failure.text = "Dictionary Word Not Found in Metadata"
-    mock_dict_metadata_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked Dict Metadata HTTP Error")
-
-    mock_requests_get.side_effect = [mock_google_failure, mock_dict_metadata_failure]
-
-    response = client.post('/api/cache_audio', json={'word': word})
+    response = client.post('/api/audio-cache', json={'word': word})
     data = json.loads(response.data)
 
     assert response.status_code == 500
-    assert data['error'] == f"Failed to cache audio for '{word}' from any online source."
-    assert data['origin_http_code'] == "404" # From dictionary metadata API attempt
-
+    assert data['error'] == f"Failed to cache audio for '{word}' from Google TTS."
+    assert data['origin_http_code'] == "503"
+    
     mock_open_file.assert_not_called()
-    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={normalized}&tl=en&client=tw-ob"
-    expected_dict_metadata_url = DICTIONARY_API_URL_TEMPLATE.format(word=urllib.parse.quote(normalized))
-    calls = [
-        mock.call(expected_google_url, headers={'Referer': expected_google_url}, timeout=10),
-        mock.call(expected_dict_metadata_url, timeout=10)
-    ]
-    mock_requests_get.assert_has_calls(calls, any_order=False)
-    assert mock_requests_get.call_count == 2
-
-# New Test Case: Google Fails, Dictionary Metadata OK, No Audio URL
-@mock.patch('server.requests.get')
-@mock.patch('server.os.path.exists')
-@mock.patch('builtins.open', new_callable=mock.mock_open)
-def test_cache_audio_dict_metadata_ok_no_audio_url(mock_open_file, mock_os_exists, mock_requests_get, client):
-    word = "noaudiourl"
-    normalized = normalize_word(word)
-    mock_os_exists.return_value = False
-
-    mock_google_failure = mock.Mock()
-    mock_google_failure.status_code = 500
-    mock_google_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked Google Error")
-
-    mock_dict_metadata_no_audio = mock.Mock()
-    mock_dict_metadata_no_audio.status_code = 200
-    mock_dict_metadata_no_audio.json.return_value = [
-        {"phonetics": [{"audio": ""}, {"audio": None}, {"audio": "http://example.com/notmp3.wav"}]}
-    ]
-
-    mock_requests_get.side_effect = [mock_google_failure, mock_dict_metadata_no_audio]
-
-    response = client.post('/api/cache_audio', json={'word': word})
-    data = json.loads(response.data)
-
-    assert response.status_code == 500
-    assert data['error'] == f"Failed to cache audio for '{word}' from any online source."
-    assert data['origin_http_code'] == "200" # From successful dictionary metadata call
-    mock_open_file.assert_not_called()
-    assert mock_requests_get.call_count == 2 # Google + Dict Metadata
-
-# New Test Case: Google Fails, Dictionary Metadata OK, Audio URL OK, MP3 Download Fails
-@mock.patch('server.requests.get')
-@mock.patch('server.os.path.exists')
-@mock.patch('builtins.open', new_callable=mock.mock_open)
-def test_cache_audio_dict_mp3_download_fails(mock_open_file, mock_os_exists, mock_requests_get, client):
-    word = "mp3fail"
-    normalized = normalize_word(word)
-    mock_os_exists.return_value = False
-
-    mock_google_failure = mock.Mock()
-    mock_google_failure.status_code = 500
-    mock_google_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked Google Error")
-
-    valid_audio_mp3_url = "https://example.com/audio/mp3fail.mp3"
-    mock_dict_metadata_success = mock.Mock()
-    mock_dict_metadata_success.status_code = 200
-    mock_dict_metadata_success.json.return_value = [
-        {"phonetics": [{"audio": valid_audio_mp3_url}]}
-    ]
-
-    mock_dict_mp3_download_failure = mock.Mock()
-    mock_dict_mp3_download_failure.status_code = 404 # MP3 URL not found
-    mock_dict_mp3_download_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked MP3 Download Error")
-
-    mock_requests_get.side_effect = [
-        mock_google_failure, 
-        mock_dict_metadata_success, 
-        mock_dict_mp3_download_failure
-    ]
-
-    response = client.post('/api/cache_audio', json={'word': word})
-    data = json.loads(response.data)
-
-    assert response.status_code == 500
-    assert data['error'] == f"Failed to cache audio for '{word}' from any online source."
-    assert data['origin_http_code'] == "404" # From failed MP3 download
-    mock_open_file.assert_not_called()
-    assert mock_requests_get.call_count == 3 # Google + Dict Metadata + MP3 attempt
-
-# New Test Case: Google Fails, Dictionary Metadata response is not JSON
-@mock.patch('server.requests.get')
-@mock.patch('server.os.path.exists')
-@mock.patch('builtins.open', new_callable=mock.mock_open)
-def test_cache_audio_dict_metadata_not_json(mock_open_file, mock_os_exists, mock_requests_get, client):
-    word = "notjson"
-    normalized = normalize_word(word)
-    mock_os_exists.return_value = False
-
-    mock_google_failure = mock.Mock()
-    mock_google_failure.status_code = 500
-    mock_google_failure.raise_for_status.side_effect = requests.exceptions.HTTPError("Mocked Google Error")
-
-    mock_dict_metadata_not_json = mock.Mock()
-    mock_dict_metadata_not_json.status_code = 200
-    mock_dict_metadata_not_json.json.side_effect = json.JSONDecodeError("mock decode error", "doc", 0)
-    # Actual text content could be anything, or not even set if .json() is the primary interaction
-
-    mock_requests_get.side_effect = [mock_google_failure, mock_dict_metadata_not_json]
-
-    response = client.post('/api/cache_audio', json={'word': word})
-    data = json.loads(response.data)
-
-    assert response.status_code == 500
-    assert data['error'] == f"Failed to cache audio for '{word}' from any online source."
-    assert data['origin_http_code'] == "200" # From the metadata request that then failed to parse
-    mock_open_file.assert_not_called()
-    assert mock_requests_get.call_count == 2 # Google + Dict Metadata attempt
+    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(word)}&tl=en&client=tw-ob"
+    mock_requests_get.assert_called_once_with(expected_google_url, headers={'Referer': expected_google_url}, timeout=10)
 
 # Test Case 4: Word already cached (Google)
 @mock.patch('server.requests.get')
@@ -272,7 +98,7 @@ def test_cache_audio_already_cached_google(mock_os_exists, mock_requests_get, cl
     # Simulate google_word.mp3 exists in the (mocked) temp_cache_dir
     mock_os_exists.side_effect = lambda path: True if os.path.basename(path) == google_filename else False
 
-    response = client.post('/api/cache_audio', json={'word': word})
+    response = client.post('/api/audio-cache', json={'word': word})
     data = json.loads(response.data)
 
     assert response.status_code == 200
@@ -281,37 +107,9 @@ def test_cache_audio_already_cached_google(mock_os_exists, mock_requests_get, cl
     assert "already cached" in data['message']
     mock_requests_get.assert_not_called()
 
-# Test Case 5: Word already cached (Dictionary, Google not present)
-@mock.patch('server.requests.get')
-@mock.patch('server.os.path.exists')
-def test_cache_audio_already_cached_dictionary(mock_os_exists, mock_requests_get, client):
-    word = "cachehit_dict"
-    normalized = normalize_word(word)
-    google_filename = f"google_{normalized}.mp3"
-    dict_filename = f"dictionary_{normalized}.mp3"
-
-    # Simulate only dictionary_word.mp3 exists
-    def check_exists(path):
-        filename = os.path.basename(path)
-        if filename == google_filename:
-            return False
-        if filename == dict_filename:
-            return True
-        return False # Default for other paths if any
-    mock_os_exists.side_effect = check_exists
-
-    response = client.post('/api/cache_audio', json={'word': word})
-    data = json.loads(response.data)
-
-    assert response.status_code == 200
-    assert data['file'] == dict_filename
-    assert data['method_used'] == 'dictionary'
-    assert "already cached" in data['message']
-    mock_requests_get.assert_not_called()
-
 # Test Case 6: Invalid Request (no 'word' provided)
 def test_cache_audio_invalid_request_no_word(client):
-    response = client.post('/api/cache_audio', json={}) # Missing 'word'
+    response = client.post('/api/audio-cache', json={}) # Missing 'word'
     assert response.status_code == 400 # Expecting Bad Request
     data = json.loads(response.data)
     assert 'error' in data
@@ -334,14 +132,14 @@ def test_cache_audio_word_normalization(mock_open_file, mock_os_exists, mock_req
     mock_google_response.content = b'mp3_data_normalized'
     mock_requests_get.return_value = mock_google_response
 
-    response = client.post('/api/cache_audio', json={'word': word})
+    response = client.post('/api/audio-cache', json={'word': word})
     data = json.loads(response.data)
 
     assert response.status_code in [200, 201]
     assert data['file'] == expected_filename
     assert data['method_used'] == 'google'
 
-    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={normalized}&tl=en&client=tw-ob"
+    expected_google_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(word)}&tl=en&client=tw-ob"
     mock_requests_get.assert_called_once_with(expected_google_url, headers={'Referer': expected_google_url}, timeout=10)
     mock_open_file.assert_called_once_with(os.path.join(server.AUDIO_CACHE_DIR, expected_filename), 'wb')
     mock_open_file().write.assert_called_once_with(b'mp3_data_normalized')
@@ -366,7 +164,7 @@ def test_placeholder_to_ensure_server_logic_is_implemented():
     # assert False, "Remove this test once server.py cache_audio is implemented and other tests start passing." 
 
 
-# --- Tests for GET /api/audio/<filename> (Section 2.2.2) ---
+# --- Tests for GET /audio_cache/<filename> (Section 2.2.2) ---
 
 def test_get_audio_success_google_file(client):
     """Test successful retrieval of a Google-cached audio file."""
@@ -376,22 +174,7 @@ def test_get_audio_success_google_file(client):
     with open(file_path, 'wb') as f:
         f.write(file_content)
 
-    response = client.get(f'/api/audio/{filename}')
-
-    assert response.status_code == 200
-    assert response.content_type == 'audio/mpeg'
-    assert response.data == file_content
-    os.remove(file_path)
-
-def test_get_audio_success_dictionary_file(client):
-    """Test successful retrieval of a Dictionary-cached audio file."""
-    filename = "dictionary_anothertest.mp3"
-    file_content = b"dictionary audio data"
-    file_path = os.path.join(server.AUDIO_CACHE_DIR, filename)
-    with open(file_path, 'wb') as f:
-        f.write(file_content)
-
-    response = client.get(f'/api/audio/{filename}')
+    response = client.get(f'/audio_cache/{filename}')
 
     assert response.status_code == 200
     assert response.content_type == 'audio/mpeg'
@@ -401,51 +184,55 @@ def test_get_audio_success_dictionary_file(client):
 def test_get_audio_file_not_found(client):
     """Test response when requested audio file does not exist."""
     filename = "google_nonexistent.mp3"
-    response = client.get(f'/api/audio/{filename}')
+    response = client.get(f'/audio_cache/{filename}')
 
     assert response.status_code == 404
     data = json.loads(response.data)
     assert data == {"error": "Audio file not found in cache."}
 
 def test_get_audio_invalid_filename_path_traversal_dots(client):
-    """Test path traversal attempt with '..'. Expect routing 404."""
-    response = client.get('/api/audio/../importantservice.txt')
-    assert response.status_code == 404 # Routing level 404
-    # Cannot assert JSON content as it's likely Flask's default HTML 404 page
+    """Test path traversal attempt with '..'. Expect a 400 due to pattern mismatch."""
+    response = client.get('/audio_cache/../importantservice.txt')
+    assert response.status_code == 400 # Pattern validation should reject this
+    data = json.loads(response.data)
+    assert data == {"error": "Invalid filename pattern."}
 
 def test_get_audio_invalid_filename_path_traversal_slash(client):
-    """Test path traversal attempt with leading '/'. Expect routing 404."""
-    response = client.get('/api/audio//etc/hosts')
-    assert response.status_code == 404 # Routing level 404
-    # Cannot assert JSON content
+    """Test path traversal attempt with slashes. Expect a 400 due to pattern mismatch."""
+    response = client.get('/audio_cache//etc/hosts', follow_redirects=True)
+    # Werkzeug/Flask will redirect /a//b to /a/b. The filename becomes 'etc/hosts'.
+    # Our pattern validation will then reject it.
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert data == {"error": "Invalid filename pattern."}
 
 def test_get_audio_invalid_filename_pattern_bad_prefix(client):
-    """Test filename with an incorrect prefix (not google_ or dictionary_)."""
-    response = client.get('/api/audio/wrongprefix_test.mp3')
+    """Test filename with an incorrect prefix (not google_)."""
+    response = client.get('/audio_cache/dictionary_test.mp3')
     assert response.status_code == 400
     data = json.loads(response.data)
     assert data == {"error": "Invalid filename pattern."}
 
 def test_get_audio_invalid_filename_pattern_bad_suffix(client):
     """Test filename with an incorrect suffix (not .mp3)."""
-    response = client.get('/api/audio/google_test.txt')
+    response = client.get('/audio_cache/google_test.txt')
     assert response.status_code == 400
     data = json.loads(response.data)
     assert data == {"error": "Invalid filename pattern."}
 
 def test_get_audio_invalid_filename_pattern_bad_chars_in_word(client):
     """Test filename with disallowed characters in the word part."""
-    response = client.get('/api/audio/google_test!word$.mp3') # server normalizer allows _, alphanum
+    response = client.get('/audio_cache/google_test!word$.mp3') # server normalizer allows _, alphanum
     assert response.status_code == 400
     data = json.loads(response.data)
     assert data == {"error": "Invalid filename pattern."}
 
 def test_get_audio_invalid_filename_empty(client):
     """Test with an empty filename string."""
-    response = client.get('/api/audio/') # Werkzeug routing might turn this into a 404 for the endpoint itself
+    response = client.get('/audio_cache/') # Werkzeug routing might turn this into a 404 for the endpoint itself
                                         # or if it matches the rule but filename is empty, our check should catch it.
     # Depending on Flask/Werkzeug routing for trailing slashes and how it extracts <filename>
-    # this might be a 404 not for the file, but for the route /api/audio/ not being defined without a filename.
+    # this might be a 404 not for the file, but for the route /audio_cache/ not being defined without a filename.
     # If filename can be empty string, our pattern r"^(google|dictionary)_[a-zA-Z0-9_]+\.mp3$" will reject it.
     if response.status_code == 404: # Route itself not found if filename is truly empty and not matched
         pass # This is acceptable as Flask/Werkzeug handles it.
@@ -456,7 +243,7 @@ def test_get_audio_invalid_filename_empty(client):
 
 def test_get_audio_invalid_filename_just_prefix_suffix(client):
     """Test filename that is just prefix and suffix e.g. google_.mp3"""
-    response = client.get('/api/audio/google_.mp3')
+    response = client.get('/audio_cache/google_.mp3')
     assert response.status_code == 400
     data = json.loads(response.data)
     assert data == {"error": "Invalid filename pattern."} 

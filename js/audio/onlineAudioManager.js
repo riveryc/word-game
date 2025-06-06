@@ -119,7 +119,7 @@ async function playOnlineAudioUnified(word) {
     };
 
     try {
-        const cacheResponse = await fetch('/api/cache_audio', {
+        const cacheResponse = await fetch('/api/audio-cache', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -136,7 +136,7 @@ async function playOnlineAudioUnified(word) {
 
         const cacheData = await cacheResponse.json();
         if (cacheData && cacheData.file) {
-            const audioUrl = `/api/audio/${cacheData.file}`;
+            const audioUrl = `/audio_cache/${cacheData.file}`;
             console.log(`playOnlineAudioUnified: Playing from ${audioUrl} (cached via ${cacheData.method_used})`);
 
             audioPlayer = new Audio(audioUrl);
@@ -224,7 +224,7 @@ async function ensureWordIsCached(word) {
 
     console.log(`ensureWordIsCached: Attempting to cache '${normalizedWord}'.`);
     try {
-        const cacheResponse = await fetch('/api/cache_audio', {
+        const cacheResponse = await fetch('/api/audio-cache', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

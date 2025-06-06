@@ -7,9 +7,6 @@ import json # For json.JSONDecodeError
 
 app = Flask(__name__)
 
-# Placeholder for a real dictionary API URL
-DICTIONARY_API_URL_TEMPLATE = "https://api.dictionaryapi.dev/api/v2/entries/en/{word}" # This is an example, actual audio URL might be different
-
 AUDIO_CACHE_DIR = "audio_cache"
 
 if not os.path.exists(AUDIO_CACHE_DIR):
@@ -74,17 +71,16 @@ def cache_audio():
         return jsonify({"error": "Missing 'word' parameter"}), 400
 
     original_word = data['word']
-    if not isinstance(original_word, str) or not original_word.strip():
-        return jsonify({"error": "'word' must be a non-empty string"}), 400
-
+    # Use normalized for dictionary query and filenames, but original_word for Google TTS
     normalized_word = normalize_word(original_word)
-    if not normalized_word:
-        return jsonify({"error": "Normalized word is empty"}), 400
+
+    if not isinstance(original_word, str) or not original_word.strip() or not normalized_word:
+        return jsonify({"error": "'word' must be a non-empty string that is normalizable"}), 400
 
     google_filename = f"google_{normalized_word}.mp3"
     google_cache_path = os.path.join(AUDIO_CACHE_DIR, google_filename)
 
-    # Check existing cache (Only for Google TTS files now)
+    # Check existing cache
     if os.path.exists(google_cache_path):
         return jsonify({
             "message": f"Audio for '{original_word}' is already cached (Google).",
@@ -94,34 +90,32 @@ def cache_audio():
     
     last_origin_http_code = None
 
-    # Attempt Google Translate
+    # Attempt 1: Google Translate
     try:
-        # Use original_word (the full sentence) for the Google TTS query for better audio quality.
-        # Use normalized_word for the filename.
         google_tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(original_word)}&tl=en&client=tw-ob"
-
-        headers = {'Referer': google_tts_url} 
-        app.logger.debug(f"Attempting Google TTS for original: '{original_word}' (normalized for filename: '{normalized_word}'): {google_tts_url}")
+        headers = {'Referer': google_tts_url}
+        app.logger.debug(f"Attempting Google TTS for '{original_word}': {google_tts_url}")
+        
         response_google = requests.get(google_tts_url, headers=headers, timeout=10)
         last_origin_http_code = str(response_google.status_code)
         response_google.raise_for_status()
-        
+
         with open(google_cache_path, 'wb') as f:
             f.write(response_google.content)
-        app.logger.info(f"Cached from Google: {google_filename} for original: '{original_word}'")
+        app.logger.info(f"Cached from Google: {google_filename} for '{original_word}'")
         return jsonify({
             "message": f"Audio for '{original_word}' cached successfully from Google.",
             "file": google_filename,
             "method_used": "google"
         }), 201
     except requests.exceptions.RequestException as e:
-        app.logger.warning(f"Google TTS failed for '{normalized_word}' (original: '{original_word}'): {e}")
+        app.logger.warning(f"Google TTS failed for '{original_word}': {e}")
         if hasattr(e, 'response') and e.response is not None:
              last_origin_http_code = str(e.response.status_code)
     except IOError as e:
         app.logger.error(f"IOError writing Google cache for '{normalized_word}': {e}")
-    
-    app.logger.warning(f"Google TTS failed for '{normalized_word}' (original: '{original_word}'). Last origin HTTP code: {last_origin_http_code}")
+
+    app.logger.error(f"Google TTS failed for '{original_word}'. Last origin HTTP code: {last_origin_http_code}")
     return jsonify({
         "error": f"Failed to cache audio for '{original_word}' from Google TTS.",
         "origin_http_code": last_origin_http_code if last_origin_http_code else "N/A"
@@ -138,7 +132,7 @@ def get_audio_file(filename):
     # It ensures prefix, allowed characters for word part, and suffix.
     # This implicitly handles many malformed paths including those with '..' or unexpected '/'
     # because those characters are not allowed by [a-zA-Z0-9_]+ for the word part.
-    pattern = r"^(google|dictionary)_[a-zA-Z0-9_]+\.mp3$"
+    pattern = r"^google_[a-zA-Z0-9_]+\.mp3$"
     if not re.match(pattern, filename):
         return jsonify({"error": "Invalid filename pattern."}), 400
 
