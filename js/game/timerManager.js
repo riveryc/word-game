@@ -151,7 +151,8 @@ export function updateTimerDisplay() {
 export function getTimerEvaluationContext() {
     return {
         hasTimeLimit: hasTimeLimit,
-        currentWordTimeoutThreshold: currentWordTimeoutThreshold
+        currentWordTimeoutThreshold: currentWordTimeoutThreshold,
+        timeoutPerLetter: timeoutPerLetter
     };
 }
 

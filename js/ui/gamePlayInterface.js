@@ -412,6 +412,8 @@ function checkAnswerInternal() {
         return;
     }
 
+    const missingLetterCount = inputElements.filter(input => !input.readOnly).length;
+
     if (!processAnswerFn) {
         console.error("[gamePlayInterface.checkAnswerInternal] processAnswerFn is not initialized!");
         isProcessing = false;
@@ -424,11 +426,12 @@ function checkAnswerInternal() {
     
     let feedbackHTML = '';
     let timerInfoHTML = '';
-    const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0 };
+    const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0, timeoutPerLetter: 0 };
 
     if (answerProcessingResult.resultStatus !== 'success' && answerProcessingResult.resultStatus !== 'timeout' && timerEvalContext.currentWordTimeoutThreshold > 0) {
         const timeTaken = answerProcessingResult.feedbackTime.toFixed(1);
-        const timeLimit = (timerEvalContext.currentWordTimeoutThreshold * (answerProcessingResult.correctAnswer || '').length).toFixed(1);
+        const timeLimit = (timerEvalContext.timeoutPerLetter * (missingLetterCount > 0 ? missingLetterCount : 1)).toFixed(1);
+        console.log(`[gamePlayInterface] Time limit calculation: timePerLetter=${timerEvalContext.timeoutPerLetter}s, missing letters=${missingLetterCount}, totalLimit=${timeLimit}s`);
         timerInfoHTML = `<div style="font-size: 0.9em; margin-top: 5px;">Time: ${timeTaken}s (Limit: ${timeLimit}s)</div>`;
     }
 
