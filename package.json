@@ -9,8 +9,12 @@
     "test:watch": "vitest --watch",
     "coverage": "vitest run --coverage",
     "docker:build": "docker build -t word-game-app .",
-    "docker:run": "docker run -p 5000:5000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm word-game-app",
-    "docker:start": "npm run docker:build && npm run docker:run"
+    "docker:run": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm word-game-app",
+    "docker:start": "npm run docker:build && npm run docker:run",
+    "docker:build:amd64": "docker build --platform linux/amd64 -t riveryc/word-game:latest .",
+    "docker:run:amd64": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm riveryc/word-game:latest",
+    "docker:start:amd64": "npm run docker:build:amd64 && npm run docker:run:amd64",
+    "docker:push:amd64": "docker push riveryc/word-game:latest"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",

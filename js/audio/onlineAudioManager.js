@@ -7,7 +7,7 @@
 console.log("onlineAudioManager.js evaluating");
 
 // Global state for the selected audio source
-window.currentAudioSource = 'online'; // Default to online, matching the checked radio button
+window.currentAudioSource = 'google'; // Default to google, matching the selected option in HTML
 
 // Helper for word normalization (should be consistent with backend)
 function normalizeWordForAudio(word) {
@@ -60,12 +60,12 @@ function initAudioControls() {
 
         // Fallback if no .selected class was found in HTML or data-method was missing
         if (!initialStateSet) {
-            console.log("No initial .selected div with data-method found, or data-method missing. Defaulting to 'online'.");
-            const onlineOptionDiv = Array.from(audioOptions).find(opt => opt.dataset.method === 'online');
-            if (onlineOptionDiv) {
-                updateSelection(onlineOptionDiv);
+            console.log("No initial .selected div with data-method found, or data-method missing. Defaulting to 'google'.");
+            const googleOptionDiv = Array.from(audioOptions).find(opt => opt.dataset.method === 'google');
+            if (googleOptionDiv) {
+                updateSelection(googleOptionDiv);
             } else if (audioOptions.length > 0) {
-                // If online specifically isn't found, default to the first option available
+                // If google specifically isn't found, default to the first option available
                 updateSelection(audioOptions[0]); 
             }
         }
@@ -89,9 +89,9 @@ function playWordAudio(word) {
 
     console.log(`playWordAudio called for: '${normalizedWord}', source: ${window.currentAudioSource}`);
 
-    if (window.currentAudioSource === 'offline') {
+    if (window.currentAudioSource === 'browser') {
         playBrowserTTS(normalizedWord);
-    } else { // 'online'
+    } else { // 'google' or 'online'
         playOnlineAudioUnified(normalizedWord);
     }
 }
@@ -206,6 +206,25 @@ function playBrowserTTS(word) {
 
 // Initialize controls when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', initAudioControls);
+
+// Enable audio context after user interaction
+function enableAudioContext() {
+    // Create a silent audio element and play it to enable autoplay
+    const silentAudio = new Audio();
+    silentAudio.src = 'data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAABACA'
+    silentAudio.volume = 0.01;
+    silentAudio.play().catch(() => {}); // Ignore errors
+    
+    // Also enable speech synthesis
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+    
+    console.log("Audio context enabled after user interaction");
+}
+
+// Enable audio context when any button is clicked
+document.addEventListener('click', enableAudioContext, { once: true });
 
 // Make playWordAudio globally accessible if it's called from other scripts not using modules
 window.playWordAudio = playWordAudio; 
