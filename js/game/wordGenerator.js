@@ -51,10 +51,18 @@ export class WordGenerator {
     createWordPuzzle(word, missingPercentage) {
         const letters = word.split('');
         const totalLetters = letters.length;
-        const missingCount = Math.ceil((totalLetters * missingPercentage) / 100);
         
-        // Determine which letters to hide
-        const hiddenIndices = this.selectHiddenIndices(totalLetters, missingCount);
+        // Only consider alphabetic characters as candidates for hiding
+        const alphabeticIndices = letters.map((letter, index) => ({
+            index: index,
+            isAlphabetic: /^[a-zA-Z]$/.test(letter)
+        })).filter(item => item.isAlphabetic).map(item => item.index);
+        
+        const alphabeticLetterCount = alphabeticIndices.length;
+        const missingCount = Math.ceil((alphabeticLetterCount * missingPercentage) / 100);
+        
+        // Determine which letters to hide (only from alphabetic characters)
+        const hiddenIndices = this.selectHiddenIndices(alphabeticIndices, missingCount);
         
         // Create puzzle structure
         const puzzleLetters = letters.map((letter, index) => ({
@@ -74,20 +82,21 @@ export class WordGenerator {
             hiddenIndices: hiddenIndices,
             missingCount: missingCount,
             totalLetters: totalLetters,
+            alphabeticLetterCount: alphabeticLetterCount,
             visibleLetters: totalLetters - missingCount
         };
     }
 
     /**
      * Select which letter indices to hide
-     * @param {number} totalLetters - Total number of letters
+     * @param {Array} availableIndices - Array of indices that can be hidden (alphabetic only)
      * @param {number} missingCount - Number of letters to hide
      * @returns {Array} - Array of indices to hide
      */
-    selectHiddenIndices(totalLetters, missingCount) {
-        if (missingCount >= totalLetters) {
-            // Hide all letters
-            return Array.from({ length: totalLetters }, (_, i) => i);
+    selectHiddenIndices(availableIndices, missingCount) {
+        if (missingCount >= availableIndices.length) {
+            // Hide all available letters
+            return [...availableIndices];
         }
 
         if (missingCount <= 0) {
@@ -95,13 +104,13 @@ export class WordGenerator {
             return [];
         }
 
-        // Randomly select indices to hide
-        const availableIndices = Array.from({ length: totalLetters }, (_, i) => i);
+        // Randomly select indices to hide from available alphabetic indices
+        const indicesCopy = [...availableIndices];
         const hiddenIndices = [];
 
         for (let i = 0; i < missingCount; i++) {
-            const randomIndex = getRandomInt(0, availableIndices.length - 1);
-            const selectedIndex = availableIndices.splice(randomIndex, 1)[0];
+            const randomIndex = getRandomInt(0, indicesCopy.length - 1);
+            const selectedIndex = indicesCopy.splice(randomIndex, 1)[0];
             hiddenIndices.push(selectedIndex);
         }
 

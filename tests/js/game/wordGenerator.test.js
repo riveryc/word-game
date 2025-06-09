@@ -100,9 +100,41 @@ describe('WordGenerator', () => {
             // then getUserInput() would need modification, or another function would do the final conversion.
 
             const userInput = wordGenerator.getUserInput();
-            // Expected: 'T' (visible) + 'e' (from input 'E') + '' (from empty input) + 't' (visible)
-            // This should be "Tet"
-            expect(userInput).toBe('Tet'); 
+            expect(userInput).toBe('Tet'); // T (visible) + e (lowercase from input) + (empty) + t (visible)
+        });
+
+        it('should only treat alphabetic characters as candidates for hiding, not symbols', () => {
+            // Test with a word containing an apostrophe like "Don't"
+            const wordGenerator = new WordGenerator();
+            
+            // Mock createWordPuzzle to test the logic
+            const word = "Don't";
+            const missingPercentage = 50; // 50% of alphabetic letters
+            
+            const puzzle = wordGenerator.createWordPuzzle(word, missingPercentage);
+            
+            // The word "Don't" has 4 alphabetic characters: D, o, n, t
+            // And 1 non-alphabetic character: '
+            expect(puzzle.alphabeticLetterCount).toBe(4);
+            expect(puzzle.totalLetters).toBe(5);
+            
+            // With 50% missing, we should hide 2 out of 4 alphabetic letters
+            expect(puzzle.missingCount).toBe(2);
+            
+            // The apostrophe should never be hidden
+            const apostropheIndex = word.indexOf("'");
+            expect(puzzle.hiddenIndices).not.toContain(apostropheIndex);
+            
+            // All hidden indices should correspond to alphabetic characters
+            puzzle.hiddenIndices.forEach(index => {
+                const character = word[index];
+                expect(/^[a-zA-Z]$/.test(character)).toBe(true);
+            });
+            
+            // The apostrophe should always be visible
+            const apostropheLetter = puzzle.puzzleLetters[apostropheIndex];
+            expect(apostropheLetter.isHidden).toBe(false);
+            expect(apostropheLetter.letter).toBe("'");
         });
     });
 }); 
