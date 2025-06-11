@@ -263,3 +263,17 @@ export function focusElement(element) {
         }
     }
 }
+
+/**
+ * Escape special HTML characters in a string
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string safe for HTML insertion
+ */
+export function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
