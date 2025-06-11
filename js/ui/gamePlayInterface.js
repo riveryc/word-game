@@ -6,6 +6,15 @@ let isProcessing = false;
 let isGamePlayActiveForFocus = false; // Re-enabled
 let boundHandleDocumentClickForFocus = null; // Re-enabled
 
+// Mobile focus management state
+let isMobileDevice = false;
+let initialViewportHeight = 0;
+let currentViewportHeight = 0;
+let keyboardVisible = false;
+let focusHelperButton = null;
+let lastFocusedInput = null;
+let refocusTimeout = null;
+
 // References to functions from other modules, to be set during initialization
 let processAnswerFn = null;
 let requestNextWordFn = null;
@@ -25,6 +34,235 @@ let feedbackDiv = null;
 // Array to hold the actual HTML input elements for letters
 let inputElements = []; 
 let currentFocusedInputIndex = -1;
+
+// Initialize mobile detection and viewport monitoring
+function initializeMobileSupport() {
+    // Detect mobile device
+    isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                    ('ontouchstart' in window) ||
+                    (window.innerWidth <= 768);
+    
+    if (isMobileDevice) {
+        console.log("[gamePlayInterface] Mobile device detected, enabling enhanced focus management");
+        
+        // Store initial viewport height
+        initialViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        currentViewportHeight = initialViewportHeight;
+        
+        // Monitor viewport changes for keyboard detection
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', handleViewportChange);
+        } else {
+            window.addEventListener('resize', handleViewportChange);
+        }
+        
+        // Create focus helper button
+        createFocusHelperButton();
+        
+        // Add touch-specific event listeners
+        document.addEventListener('touchstart', handleTouchStart, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd, { passive: false });
+    }
+}
+
+// Handle viewport changes to detect keyboard show/hide
+function handleViewportChange() {
+    if (!isMobileDevice || !isGamePlayActiveForFocus) return;
+    
+    const newHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const heightDifference = initialViewportHeight - newHeight;
+    const wasKeyboardVisible = keyboardVisible;
+    
+    // Keyboard is considered visible if viewport height decreased significantly
+    keyboardVisible = heightDifference > 150;
+    
+    if (wasKeyboardVisible && !keyboardVisible) {
+        // Keyboard was hidden
+        console.log("[gamePlayInterface] Mobile keyboard hidden, showing focus helper");
+        showFocusHelper();
+        
+        // Attempt to refocus after a short delay
+        if (refocusTimeout) clearTimeout(refocusTimeout);
+        refocusTimeout = setTimeout(() => {
+            refocusLastActiveInput();
+        }, 300);
+    } else if (!wasKeyboardVisible && keyboardVisible) {
+        // Keyboard was shown
+        console.log("[gamePlayInterface] Mobile keyboard shown, hiding focus helper");
+        hideFocusHelper();
+    }
+    
+    currentViewportHeight = newHeight;
+}
+
+// Create floating focus helper button
+function createFocusHelperButton() {
+    if (focusHelperButton) return;
+    
+    focusHelperButton = document.createElement('button');
+    focusHelperButton.id = 'mobile-focus-helper';
+    focusHelperButton.innerHTML = '⌨️ Tap to continue typing';
+    focusHelperButton.className = 'mobile-focus-helper';
+    focusHelperButton.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: bold;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 1000;
+        display: none;
+        cursor: pointer;
+        animation: pulse 2s infinite;
+    `;
+    
+    // Add CSS animation
+    if (!document.getElementById('mobile-focus-styles')) {
+        const style = document.createElement('style');
+        style.id = 'mobile-focus-styles';
+        style.textContent = `
+            @keyframes pulse {
+                0% { transform: translateX(-50%) scale(1); }
+                50% { transform: translateX(-50%) scale(1.05); }
+                100% { transform: translateX(-50%) scale(1); }
+            }
+            
+            .mobile-focus-helper:active {
+                transform: translateX(-50%) scale(0.95) !important;
+            }
+            
+            .inline-input.mobile-focused {
+                box-shadow: 0 0 0 3px #4CAF50 !important;
+                border-color: #4CAF50 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    focusHelperButton.addEventListener('click', handleFocusHelperClick);
+    focusHelperButton.addEventListener('touchend', handleFocusHelperClick);
+    
+    document.body.appendChild(focusHelperButton);
+}
+
+// Handle focus helper button click
+function handleFocusHelperClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Add haptic feedback if available
+    if (navigator.vibrate) {
+        navigator.vibrate(50);
+    }
+    
+    hideFocusHelper();
+    refocusLastActiveInput();
+}
+
+// Show focus helper button
+function showFocusHelper() {
+    if (focusHelperButton && isGamePlayActiveForFocus) {
+        focusHelperButton.style.display = 'block';
+    }
+}
+
+// Hide focus helper button
+function hideFocusHelper() {
+    if (focusHelperButton) {
+        focusHelperButton.style.display = 'none';
+    }
+}
+
+// Refocus the last active input or first editable input
+function refocusLastActiveInput() {
+    if (!isGamePlayActiveForFocus || waitingForContinue || isProcessing) return;
+    
+    let targetInput = null;
+    
+    // Try to focus the last focused input if it's still editable
+    if (lastFocusedInput && !lastFocusedInput.readOnly && inputElements.includes(lastFocusedInput)) {
+        targetInput = lastFocusedInput;
+    } else if (currentFocusedInputIndex >= 0 && inputElements[currentFocusedInputIndex] && !inputElements[currentFocusedInputIndex].readOnly) {
+        targetInput = inputElements[currentFocusedInputIndex];
+    } else {
+        // Fallback to first empty editable input
+        targetInput = inputElements.find(input => !input.readOnly && !input.value);
+        if (!targetInput) {
+            // If no empty inputs, focus first editable input
+            targetInput = inputElements.find(input => !input.readOnly);
+        }
+    }
+    
+    if (targetInput) {
+        // Add visual emphasis
+        inputElements.forEach(input => input.classList.remove('mobile-focused'));
+        targetInput.classList.add('mobile-focused');
+        
+        // Focus with iOS-specific attributes
+        targetInput.setAttribute('inputmode', 'text');
+        targetInput.setAttribute('autocomplete', 'off');
+        targetInput.focus();
+        
+        // Force keyboard on iOS
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            targetInput.click();
+        }
+        
+        console.log("[gamePlayInterface] Refocused input element");
+    }
+}
+
+// Handle touch start events
+function handleTouchStart(event) {
+    if (!isGamePlayActiveForFocus || waitingForContinue || isProcessing) return;
+    
+    const target = event.target;
+    
+    // If touch is on an input element, store it as last focused
+    if (inputElements.includes(target)) {
+        lastFocusedInput = target;
+        return;
+    }
+    
+    // If touch is on focus helper, let it handle
+    if (target === focusHelperButton) {
+        return;
+    }
+    
+    // If touch is on game interface elements, allow it
+    if (target.closest('#game-interface')) {
+        return;
+    }
+}
+
+// Handle touch end events  
+function handleTouchEnd(event) {
+    if (!isGamePlayActiveForFocus || waitingForContinue || isProcessing) return;
+    
+    const target = event.target;
+    
+    // If touch ended outside game interface and not on an input
+    if (!target.closest('#game-interface') && !inputElements.includes(target)) {
+        // Prevent default behavior that might hide keyboard
+        event.preventDefault();
+        
+        // Schedule refocus after a brief delay
+        if (refocusTimeout) clearTimeout(refocusTimeout);
+        refocusTimeout = setTimeout(() => {
+            if (!keyboardVisible) {
+                showFocusHelper();
+            } else {
+                refocusLastActiveInput();
+            }
+        }, 100);
+    }
+}
 
 // Helper function to find the index of the next editable input
 function findNextEditableInputIndex(currentIndex) {
@@ -46,7 +284,7 @@ function findPreviousEditableInputIndex(currentIndex) {
     return -1; // No previous editable input found
 }
 
-// Refined function to handle document clicks for focus lock
+// Enhanced focus management for both desktop and mobile
 function handleDocumentClickForFocus(event) {
     if (!isGamePlayActiveForFocus || isProcessing || waitingForContinue) {
         return; // Lock not active or game is processing
@@ -55,34 +293,24 @@ function handleDocumentClickForFocus(event) {
     const target = event.target;
 
     // Check if the click target is an interactive element within the game interface
-    // or an input element itself.
-    if (inputElements.includes(target) || // Clicked on one of our known input elements
-        (target.closest && target.closest('#game-interface') && // Is the click target inside the game-interface?
-         (target.nodeName === 'BUTTON' || target.classList.contains('repeat-button')) // And is it a button?
-        )
-       ) {
-        // If the click is on a known input or a button inside the game-interface,
-        // let the browser handle the focus naturally.
-        // The 'focus' event listener on individual inputs should handle updating currentFocusedInputIndex.
+    if (inputElements.includes(target) || 
+        (target.closest && target.closest('#game-interface') && 
+         (target.nodeName === 'BUTTON' || target.classList.contains('repeat-button'))
+        )) {
         console.log("[gamePlayInterface.handleDocumentClickForFocus] Click on interactive element or input. No refocus.");
         return; 
     }
 
-    // If the click was outside interactive elements, refocus.
-    console.log("[gamePlayInterface.handleDocumentClickForFocus] Click detected outside inputs. Refocusing.");
-    // Attempt to focus the last known focused *editable* input first
-    if (currentFocusedInputIndex !== -1 && 
-        inputElements[currentFocusedInputIndex] && 
-        !inputElements[currentFocusedInputIndex].readOnly) {
-        focusInputElement(currentFocusedInputIndex);
-    } else {
-        // Fallback to the first *editable* input
-        const firstEditableInput = inputElements.find(input => !input.readOnly);
-        if (firstEditableInput) {
-            // focusInputElement will call .focus() and update currentFocusedInputIndex
-            focusInputElement(inputElements.indexOf(firstEditableInput)); 
-        }
+    // If mobile and keyboard is hidden, show helper instead of immediate refocus
+    if (isMobileDevice && !keyboardVisible) {
+        console.log("[gamePlayInterface.handleDocumentClickForFocus] Mobile click outside, showing focus helper.");
+        showFocusHelper();
+        return;
     }
+
+    // Desktop or mobile with keyboard visible - refocus immediately
+    console.log("[gamePlayInterface.handleDocumentClickForFocus] Click detected outside inputs. Refocusing.");
+    refocusLastActiveInput();
 }
 
 // Function to display the word challenge
@@ -151,11 +379,37 @@ function displayWordChallenge(currentWordData) {
                 input.readOnly = true;    // Make it read-only
                 input.classList.add('hint-letter'); // Optional class for styling hints
             } else { // Letter is hidden, user needs to guess
+                // Enhanced mobile attributes
+                if (isMobileDevice) {
+                    input.setAttribute('inputmode', 'text');
+                    input.setAttribute('autocapitalize', 'none');
+                    input.setAttribute('enterkeyhint', 'next');
+                }
+                
                 // Add event listeners only for active input fields
                 input.addEventListener('keydown', handleInputKeydown);
                 input.addEventListener('input', handleInputChange);
                 input.addEventListener('focus', (e) => {
                     currentFocusedInputIndex = parseInt(e.target.dataset.index);
+                    lastFocusedInput = e.target;
+                    
+                    // Remove mobile focus styling from other inputs
+                    if (isMobileDevice) {
+                        inputElements.forEach(inp => inp.classList.remove('mobile-focused'));
+                        e.target.classList.add('mobile-focused');
+                        hideFocusHelper();
+                    }
+                });
+                
+                input.addEventListener('blur', (e) => {
+                    // On mobile, detect if blur was caused by keyboard hiding
+                    if (isMobileDevice) {
+                        setTimeout(() => {
+                            if (!keyboardVisible && isGamePlayActiveForFocus) {
+                                showFocusHelper();
+                            }
+                        }, 100);
+                    }
                 });
             }
             
@@ -181,8 +435,14 @@ function displayWordChallenge(currentWordData) {
         // Set initial focus on the first *editable* input element
         const firstEditableInput = inputElements.find(input => !input.readOnly);
         if (firstEditableInput) {
+            // Enhanced mobile input setup
+            if (isMobileDevice) {
+                firstEditableInput.setAttribute('inputmode', 'text');
+                firstEditableInput.setAttribute('enterkeyhint', 'next');
+            }
             firstEditableInput.focus();
             currentFocusedInputIndex = parseInt(firstEditableInput.dataset.index);
+            lastFocusedInput = firstEditableInput;
         } else if (inputElements.length > 0) {
              // Fallback if all are read-only (e.g. 0% missing), focus first one anyway
             inputElements[0].focus();
@@ -199,6 +459,12 @@ function displayWordChallenge(currentWordData) {
         }
         document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
         document.addEventListener('click', boundHandleDocumentClickForFocus, true);
+        
+        // Hide focus helper when new word starts
+        if (isMobileDevice) {
+            hideFocusHelper();
+        }
+        
         console.log("[gamePlayInterface.displayWordChallenge] Focus lock ACTIVATED.");
 
     } else {
@@ -466,8 +732,19 @@ export function clearGamePlayUI() {
     if (feedbackDiv) feedbackDiv.innerHTML = '';
     inputElements = [];
     currentFocusedInputIndex = -1;
+    lastFocusedInput = null;
     isProcessing = false;
     waitingForContinue = false;
+    
+    // Clear mobile-specific resources
+    if (isMobileDevice) {
+        hideFocusHelper();
+        if (refocusTimeout) {
+            clearTimeout(refocusTimeout);
+            refocusTimeout = null;
+        }
+    }
+    
     document.removeEventListener('keydown', handleInputKeydown); // This might not be necessary if inputs are removed
     document.removeEventListener('keydown', handleDocumentKeydown);
     document.removeEventListener('keydown', handleGlobalKeydown); // Cleanup old one just in case
@@ -481,6 +758,15 @@ export function deactivateGamePlayFocusLock() {
         document.removeEventListener('click', boundHandleDocumentClickForFocus, true);
         console.log("[gamePlayInterface.js] Focus lock event listener REMOVED via deactivate.");
     }
+    
+    // Clean up mobile-specific resources
+    if (isMobileDevice) {
+        hideFocusHelper();
+        if (refocusTimeout) {
+            clearTimeout(refocusTimeout);
+            refocusTimeout = null;
+        }
+    }
 }
 
 export function initializeGamePlayInterface(callbacks) {
@@ -493,6 +779,9 @@ export function initializeGamePlayInterface(callbacks) {
     // getGameManagerCurrentWordFn = callbacks.getGameManagerCurrentWord;
 
     console.log("[gamePlayInterface.js] Initialized with callbacks. requestNextWordFn type:", typeof requestNextWordFn, "getTimerContextFn type:", typeof getTimerContextFn);
+    
+    // Initialize mobile support
+    initializeMobileSupport();
     
     // Attempt to remove word-description on initialization as well, if it exists then.
     // This handles cases where displayWordChallenge might not be the first point of interaction.

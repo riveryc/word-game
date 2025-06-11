@@ -1,5 +1,88 @@
 /* Responsive CSS - Mobile and tablet styles */
 
+/* Mobile Focus Enhancement Styles */
+@media screen and (max-width: 768px) {
+    /* Improve touch targets for input fields */
+    .inline-input {
+        min-height: 44px; /* iOS recommended minimum touch target */
+        min-width: 44px;
+        padding: 8px;
+        margin: 2px;
+        border-radius: 6px;
+        border: 2px solid #ddd;
+        text-align: center;
+        touch-action: manipulation; /* Prevent zoom on tap */
+    }
+
+    .inline-input:focus {
+        border-color: #4CAF50;
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        outline: none;
+    }
+
+    .inline-input.mobile-focused {
+        border-color: #4CAF50 !important;
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.4) !important;
+        animation: focusPulse 1.5s ease-in-out;
+    }
+
+    @keyframes focusPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+
+    /* Improve word display area for mobile */
+    .word-guess-area {
+        justify-content: center;
+        align-items: center;
+        gap: 4px;
+        padding: 10px 0;
+        min-height: 60px;
+    }
+
+    /* Make repeat button more touch-friendly */
+    .repeat-button {
+        min-height: 44px;
+        padding: 12px 18px;
+        margin: 15px 0;
+        border-radius: 8px;
+        touch-action: manipulation;
+    }
+
+    /* Game interface improvements */
+    .game-interface {
+        padding: 20px 15px;
+        margin: 10px;
+    }
+
+    /* Focus helper button responsive styles */
+    .mobile-focus-helper {
+        font-size: 16px !important; /* Prevent zoom on iOS */
+        padding: 14px 28px !important;
+        border-radius: 30px !important;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3) !important;
+        min-height: 44px;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    /* Improve feedback display */
+    .feedback {
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 8px;
+        font-size: 1.1em;
+    }
+
+    /* Better spacing for sentence segments */
+    .sentence-prefix, .sentence-suffix {
+        padding: 0 5px;
+        line-height: 1.4;
+    }
+}
+
 /* iPad and smaller tablets (portrait) */
 @media screen and (max-width: 1024px) and (orientation: portrait) {
     .word-display {
@@ -201,19 +284,19 @@
     }
 
     .sheets-url-input {
-        font-size: 0.9em;
-        padding: 10px 12px;
-        max-width: 100%;
+        font-size: 1em;
+        padding: 8px 12px;
+        border-radius: 4px;
     }
 
     .url-help {
-        font-size: 0.8em;
-        padding: 8px;
-        margin: 8px 0;
+        font-size: 0.9em;
+        line-height: 1.4;
+        margin-top: 8px;
     }
 }
 
-/* Very small phones (landscape) */
+/* Landscape orientation adjustments for phones */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     .container {
         padding: 10px;
@@ -221,21 +304,22 @@
     }
 
     .word-display {
-        font-size: 1.3em;
-        margin: 10px 0;
+        font-size: 1.2em;
+        margin: 8px 0;
     }
 
     .inline-input {
-        font-size: 1.3em;
+        font-size: 1.2em;
+        width: 0.9em;
     }
 
     .visible-letter {
-        font-size: 1.3em;
+        font-size: 1.2em;
     }
 
     .correct-word-display {
-        font-size: 1.3em;
-        padding: 8px 12px;
+        font-size: 1.2em;
+        padding: 6px 12px;
         margin: 8px 0;
     }
 
@@ -245,7 +329,7 @@
     }
 
     h1 {
-        font-size: 1.5em;
+        font-size: 1.4em;
         margin-bottom: 10px;
     }
 
@@ -254,7 +338,6 @@
         margin: 10px 0;
     }
 
-    /* Data Source Selection - Landscape */
     .data-source-selection {
         padding: 10px;
     }
@@ -265,9 +348,8 @@
     }
 
     .source-option {
-        width: 100%;
-        max-width: 280px;
-        padding: 12px;
+        padding: 10px;
+        margin: 0 5px;
     }
 
     .source-title {
@@ -277,5 +359,13 @@
 
     .source-description {
         font-size: 0.8em;
+        line-height: 1.2;
+    }
+
+    /* Focus helper button for landscape */
+    .mobile-focus-helper {
+        bottom: 10px !important;
+        padding: 10px 20px !important;
+        font-size: 14px !important;
     }
 }
