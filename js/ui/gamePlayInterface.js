@@ -656,6 +656,18 @@ function applyFeedbackToInputs(userAttemptString, expectedWordString) {
     return allCorrect;
 }
 
+// Build HTML showing comparison between user attempt and correct answer
+function generateComparisonHTML(userAttemptString, expectedWordString) {
+    const userChars = String(userAttemptString || '').split('');
+    return String(expectedWordString || '').split('').map((ch, idx) => {
+        const userCh = userChars[idx] || '';
+        if (userCh.toLowerCase() === ch.toLowerCase()) {
+            return `<span class="letter-correct">${ch}</span>`;
+        }
+        return `<span class="letter-incorrect">${ch}</span>`;
+    }).join('');
+}
+
 
 function checkAnswerInternal() {
     if (waitingForContinue || isProcessing) {
@@ -667,7 +679,8 @@ function checkAnswerInternal() {
 
     const finalTimeElapsed = stopWordTimerFn ? stopWordTimerFn() : 0;
     
-    let userAnswer = inputElements.map(input => input.value.trim().toLowerCase()).join('');
+    const rawUserAnswer = inputElements.map(input => input.value.trim()).join('');
+    let userAnswer = rawUserAnswer.toLowerCase();
 
     if (!inputElements.some(input => input.value.trim() !== '')) {
         if(feedbackDiv) feedbackDiv.innerHTML = '<span class="incorrect">Please type the missing word!</span>';
@@ -703,13 +716,17 @@ function checkAnswerInternal() {
 
     if (answerProcessingResult.resultStatus === 'success') {
         feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s</div></div>`;
-    } else if (answerProcessingResult.resultStatus === 'timeout') { 
+    } else if (answerProcessingResult.resultStatus === 'timeout') {
         feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Correct (but a bit slow)</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s. Try to be faster!</div></div>`;
-    } else { 
-        feedbackHTML = `<div class="incorrect-feedback"><span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><br><div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">Press Enter to continue.${timerInfoHTML}</div></div>`;
+    } else {
+        const comparisonHTML = generateComparisonHTML(rawUserAnswer, answerProcessingResult.correctAnswer);
+        feedbackHTML = `<div class="incorrect-feedback"><span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><div class="comparison-section"><div class="user-answer-display">${rawUserAnswer}</div><div class="correct-word-display">${comparisonHTML}</div></div><div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">Press Enter to continue.${timerInfoHTML}</div></div>`;
     }
     
-    if(feedbackDiv) feedbackDiv.innerHTML = feedbackHTML;
+    if(feedbackDiv) {
+        feedbackDiv.innerHTML = feedbackHTML;
+        feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
     console.log("[gamePlayInterface.checkAnswerInternal] Before setting waitingForContinue:", waitingForContinue);
     waitingForContinue = true; 
