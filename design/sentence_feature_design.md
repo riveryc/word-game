@@ -38,7 +38,6 @@ The game will support three types of sentence structures:
 ### 3.2. Fallback Audio Mechanism
 
 -   If the Google TTS API call fails (e.g., due to network issues or API errors), the game will fall back to using the local browser's built-in TTS capabilities.
--   The existing dictionary API for word audio will likely be removed as it does not support sentences.
 
 ### 3.3. Server-Side Audio Caching & Filename Normalization (for Google TTS via Backend)
 
@@ -72,7 +71,6 @@ The game will support three types of sentence structures:
 
 -   Investigate options for more dynamic sentence generation.
 -   Explore different highlighting styles for the missing word.
--   Consider if the dictionary API can be repurposed or if an alternative is needed for definitions if that feature is still desired.
 
 ## 6. Development Plan
 
@@ -142,8 +140,6 @@ The game will support three types of sentence structures:
         *   Accurate timer start conditions.
         *   Functionality of the fallback TTS mechanism.
     *   Conduct thorough manual end-to-end testing.
-3.  **Review and Deprecate Dictionary API:**
-    *   Assess if the existing dictionary API for single-word audio is still required. If it becomes redundant, plan for its removal to simplify the codebase.
 
 **Assumptions for Planning:**
 
