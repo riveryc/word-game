@@ -314,7 +314,7 @@ function handleDocumentClickForFocus(event) {
 }
 
 // Function to display the word challenge
-function displayWordChallenge(currentWordData) { 
+function displayWordChallenge(currentWordData) {
     console.log("[gamePlayInterface.displayWordChallenge] Called. Resetting flags.");
     isProcessing = false;
     waitingForContinue = false;
@@ -325,6 +325,11 @@ function displayWordChallenge(currentWordData) {
     if (!gameInterfaceDiv) gameInterfaceDiv = document.getElementById('game-interface');
     if (!wordDisplayDiv) wordDisplayDiv = document.getElementById('word-display');
     if (!progressDiv) progressDiv = document.getElementById('progress');
+    const timeDiv = document.getElementById('time-spent');
+    if (timeDiv) {
+        timeDiv.textContent = '';
+        timeDiv.className = 'time-spent';
+    }
     
     // Remove the word-description element if it exists
     const wordDescriptionElementToRemove = document.getElementById('word-description');
@@ -676,7 +681,9 @@ function applyFeedbackToInputs(userAttemptString, expectedWordString) {
     if (wordGuessArea) {
         wordGuessArea.innerHTML = '';
         wordGuessArea.classList.add('show-feedback');
-        wordGuessArea.appendChild(typedRow);
+        if (!allCorrect) {
+            wordGuessArea.appendChild(typedRow);
+        }
         wordGuessArea.appendChild(resultRow);
         extraNodes.forEach(node => wordGuessArea.appendChild(node));
     }
@@ -726,7 +733,7 @@ function checkAnswerInternal() {
 
     const timeDiv = document.getElementById('time-spent');
     if (timeDiv) {
-        timeDiv.textContent = `Time: ${timeTaken}s`;
+        timeDiv.textContent = `Time: ${timeTaken}s - press Enter to continue`;
         timeDiv.className = 'time-spent';
     }
 

@@ -8,6 +8,9 @@ import {
 import { getHasTimeLimit, getTimeoutPerLetter } from '../game/timerManager.js';
 import { updateBackButtonVisibility } from './confirmationDialog.js'; // Assuming this is exported from confirmationDialog.js
 
+let currentRound = 1;
+const roundSummaries = [];
+
 // Show final results screen
 // Parameters expected:
 // - correctAnswers: number
@@ -47,6 +50,15 @@ export function showFinalResults(correctAnswers, totalWordsInGame, resultsData, 
     const timeoutCount = resultsData.filter(result => result.status === 'timeout').length;
     const incorrectCount = resultsData.filter(result => result.status === 'incorrect').length;
     const timeoutIncorrectCount = resultsData.filter(result => result.status === 'timeout_incorrect').length;
+
+    roundSummaries.push({
+        round: currentRound,
+        total: totalWordsInGame,
+        correctWithinTime: perfectCount,
+        correctSlow: timeoutCount,
+        incorrect: incorrectCount,
+        incorrectSlow: timeoutIncorrectCount
+    });
     const parseTime = (timeStr) => {
         if (typeof timeStr === 'string') return parseFloat(timeStr.replace('s', ''));
         if (typeof timeStr === 'number') return timeStr;
@@ -61,24 +73,34 @@ export function showFinalResults(correctAnswers, totalWordsInGame, resultsData, 
     const avgIncorrectTime = incorrectTimes.length > 0 ? (incorrectTimes.reduce((a, b) => a + b, 0) / incorrectTimes.length) : 0;
     const avgTimeoutIncorrectTime = timeoutIncorrectTimes.length > 0 ? (timeoutIncorrectTimes.reduce((a, b) => a + b, 0) / timeoutIncorrectTimes.length) : 0;
     const percentage = totalWordsInGame > 0 ? Math.round((perfectCount / totalWordsInGame) * 100) : 0;
+    const percentTimeout = totalWordsInGame > 0 ? Math.round((timeoutCount / totalWordsInGame) * 100) : 0;
+    const percentIncorrect = totalWordsInGame > 0 ? Math.round((incorrectCount / totalWordsInGame) * 100) : 0;
+    const percentTimeoutIncorrect = totalWordsInGame > 0 ? Math.round((timeoutIncorrectCount / totalWordsInGame) * 100) : 0;
     const currentLevel = getCurrentSelectedLevel(); 
     const gameHasTimeLimit = getHasTimeLimit(); 
     const gameTimeoutPerLetter = getTimeoutPerLetter(); 
     let resultHTML = `
         <div style="margin-bottom: 20px;">
-            <div style="font-size: 1.2em; margin-bottom: 10px;">Game Complete!</div>
+            <div style="font-size: 1.2em; margin-bottom: 10px;">Round ${currentRound} Complete!</div>
             ${gameHasTimeLimit ? `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${currentLevel}, ${gameTimeoutPerLetter}s per missing letter</div>` : `<div style="font-size: 1em; color: #E6E6FA;">Settings: Level ${currentLevel}, No time limit</div>`}
         </div>
-        <div style="font-size: 1.1em; margin-bottom: 20px;">Perfect Score: ${perfectCount}/${totalWordsInGame} (${percentage}%)
+        <div style="font-size: 1.1em; margin-bottom: 20px;">Correct: ${perfectCount + timeoutCount}/${totalWordsInGame}
         </div>
         <div style="background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin: 20px 0;">
             <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 10px;">📊 Performance Summary:</div>
     `;
-    if (perfectCount > 0) resultHTML += `<div style="color: #90EE90; margin: 5px 0;">✅ Perfect: ${perfectCount} words (avg: ${avgPerfectTime.toFixed(1)}s)</div>`;
-    if (timeoutCount > 0) resultHTML += `<div style="color: #FFD700; margin: 5px 0;">⚠️ Correct but slow: ${timeoutCount} words (avg: ${avgTimeoutTime.toFixed(1)}s)</div>`;
-    if (incorrectCount > 0) resultHTML += `<div style="color: #FFB6C1; margin: 5px 0;">❌ Incorrect: ${incorrectCount} words (avg: ${avgIncorrectTime.toFixed(1)}s)</div>`;
-    if (timeoutIncorrectCount > 0) resultHTML += `<div style="color: #FF6B6B; margin: 5px 0;">❌⚠️ Wrong & slow: ${timeoutIncorrectCount} words (avg: ${avgTimeoutIncorrectTime.toFixed(1)}s)</div>`;
+    if (perfectCount > 0) resultHTML += `<div style="color: #90EE90; margin: 5px 0;">✅ Correct within time: ${percentPerfect}%</div>`;
+    if (timeoutCount > 0) resultHTML += `<div style="color: #FFD700; margin: 5px 0;">⚠️ Correct but slow: ${percentTimeout}%</div>`;
+    if (incorrectCount > 0) resultHTML += `<div style="color: #FFB6C1; margin: 5px 0;">❌ Incorrect: ${percentIncorrect}%</div>`;
+    if (timeoutIncorrectCount > 0) resultHTML += `<div style="color: #FF6B6B; margin: 5px 0;">❌⚠️ Incorrect and slow: ${percentTimeoutIncorrect}%</div>`;
     resultHTML += `</div>`;
+    if (!canRetry && roundSummaries.length > 1) {
+        resultHTML += `<div style="margin-top:20px; font-size:1.1em;">Overall Results:</div>`;
+        roundSummaries.forEach(r => {
+            const correctTotal = r.correctWithinTime + r.correctSlow;
+            resultHTML += `<div style="margin:3px 0;">Round ${r.round}: ${correctTotal}/${r.total} correct</div>`;
+        });
+    }
     if (canRetry) {
         resultHTML += `
         <div style="margin: 20px 0;">
@@ -132,6 +154,7 @@ function initiateRetryFlow() {
     if (gameInterfaceDiv) gameInterfaceDiv.style.display = 'block';
     
     removeRetryKeyboardShortcut(); // Remove listener to prevent multiple triggers if user hits Enter quickly
+    currentRound += 1;
     startRetryGameInManager(); // from gameManager
 }
 
@@ -146,6 +169,8 @@ export function restartGame() {
     if (typeof updateBackButtonVisibility === 'function') {
         updateBackButtonVisibility();
     }
+    currentRound = 1;
+    roundSummaries.length = 0;
 }
 
 // Add keyboard shortcut for retry functionality
@@ -156,6 +181,11 @@ export function addRetryKeyboardShortcut() {
 // Remove keyboard shortcut for retry functionality
 export function removeRetryKeyboardShortcut() {
     document.removeEventListener('keydown', handleRetryKeydown);
+}
+
+export function resetRoundTracking() {
+    currentRound = 1;
+    roundSummaries.length = 0;
 }
 
 // Handle Enter key press on final results page
