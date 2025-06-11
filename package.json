@@ -5,8 +5,9 @@
   "main": "server.py", 
   "scripts": {
     "start": "python server.py", 
-    "test": "vitest run",
-    "test:watch": "vitest --watch",
+    "jstest": "vitest run",
+    "jstest:watch": "vitest --watch",
+    "pytest": "python -m pytest",
     "coverage": "vitest run --coverage",
     "docker:build": "docker build -t word-game-app .",
     "docker:run": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm word-game-app",
