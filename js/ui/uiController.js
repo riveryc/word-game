@@ -1,7 +1,7 @@
 // Main UI coordination
 
 import { ELEMENTS, CSS_CLASSES, SUCCESS_MESSAGES } from '../app/config.js';
-import { getElementById, showElement, hideElement, setText, setHTML, addClass, removeClass } from '../utils/helpers.js';
+import { getElementById, showElement, hideElement, setText, setHTML, addClass, removeClass, escapeHTML } from '../utils/helpers.js';
 
 /**
  * UI controller class for managing user interface
@@ -247,11 +247,11 @@ export class UIController {
         return correctLetters.map((letter, index) => {
             const userLetter = userLetters[index] || '';
             const isDifferent = letter.toLowerCase() !== userLetter.toLowerCase();
-            
+
             if (isDifferent) {
-                return `<span style="background-color: rgba(255, 255, 0, 0.3); font-weight: bold;">${letter}</span>`;
+                return `<span style="background-color: rgba(255, 255, 0, 0.3); font-weight: bold;">${escapeHTML(letter)}</span>`;
             } else {
-                return letter;
+                return escapeHTML(letter);
             }
         }).join('');
     }

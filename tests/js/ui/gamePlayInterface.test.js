@@ -80,7 +80,81 @@ describe('Game Play Interface - Input Handling (via handleInputChange)', () => {
         mockInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         expect(mockInput.value).toBe('');
     });
-}); 
+});
+
+// New tests for feedback escaping
+describe('Game Play Interface - Feedback Escaping', () => {
+    let root;
+    let wordDisplayDiv;
+    let mockCallbacks;
+
+    beforeEach(() => {
+        root = document.createElement('div');
+        root.id = 'game-interface';
+        document.body.appendChild(root);
+
+        wordDisplayDiv = document.createElement('div');
+        wordDisplayDiv.id = 'word-display';
+        root.appendChild(wordDisplayDiv);
+
+        const progressDiv = document.createElement('div');
+        progressDiv.id = 'progress';
+        root.appendChild(progressDiv);
+
+        const feedbackDiv = document.createElement('div');
+        feedbackDiv.id = 'feedback';
+        root.appendChild(feedbackDiv);
+
+        mockCallbacks = {
+            processAnswer: vi.fn(() => ({
+                resultStatus: 'incorrect',
+                feedbackTime: 0,
+                correctAnswer: 'a',
+                userAnswer: '<'
+            })),
+            requestNextWordOrEndGameDisplay: vi.fn(),
+            getTimerEvaluationContext: vi.fn(() => ({ currentWordTimeoutThreshold: 0 })),
+            stopWordTimer: vi.fn(),
+            startWordTimer: vi.fn(),
+            repeatWord: vi.fn()
+        };
+
+        initializeGamePlayInterface(mockCallbacks);
+
+        const wordData = {
+            word: 'a',
+            sentencePrefix: '',
+            sentenceSuffix: '',
+            displayableWordParts: [{ letter: 'a', isHidden: true }],
+            progressText: '',
+            hintText: ''
+        };
+
+        displayWordChallenge(wordData);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        deactivateGamePlayFocusLock();
+        document.body.innerHTML = '';
+        resetUIStateForTesting();
+    });
+
+    it('escapes < characters in feedback display', () => {
+        const input = wordDisplayDiv.querySelector('.inline-input');
+        expect(input).not.toBeNull();
+        if (!input) return;
+
+        input.value = '<';
+        input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        const typedSpan = wordDisplayDiv.querySelector('.typed-word-row .typed-letter');
+        expect(typedSpan, 'Typed span should exist after feedback').not.toBeNull();
+        if (!typedSpan) return;
+        expect(typedSpan.innerHTML).toBe('&lt;');
+    });
+});
 
 // New test suite for Focus Lock Mechanism
 describe('Game Play Interface - Focus Lock Mechanism', () => {

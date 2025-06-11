@@ -1,4 +1,5 @@
 // js/ui/gamePlayInterface.js
+import { escapeHTML } from '../utils/helpers.js';
 
 // Module-specific state for the game play interface
 let waitingForContinue = false;
@@ -655,11 +656,11 @@ function applyFeedbackToInputs(userAttemptString, expectedWordString) {
 
         const typedSpan = document.createElement('span');
         typedSpan.className = 'inline-input typed-letter';
-        typedSpan.textContent = userChar;
+        typedSpan.innerHTML = escapeHTML(userChar);
 
         const resultSpan = document.createElement('span');
         resultSpan.className = 'inline-input result-letter';
-        resultSpan.textContent = expectedCharOriginal;
+        resultSpan.innerHTML = escapeHTML(expectedCharOriginal);
 
         if (!input.classList.contains('hint-letter')) {
             if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
