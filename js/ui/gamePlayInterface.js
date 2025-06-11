@@ -314,7 +314,7 @@ function handleDocumentClickForFocus(event) {
 }
 
 // Function to display the word challenge
-function displayWordChallenge(currentWordData) { 
+function displayWordChallenge(currentWordData) {
     console.log("[gamePlayInterface.displayWordChallenge] Called. Resetting flags.");
     isProcessing = false;
     waitingForContinue = false;
@@ -325,6 +325,11 @@ function displayWordChallenge(currentWordData) {
     if (!gameInterfaceDiv) gameInterfaceDiv = document.getElementById('game-interface');
     if (!wordDisplayDiv) wordDisplayDiv = document.getElementById('word-display');
     if (!progressDiv) progressDiv = document.getElementById('progress');
+    const timeDiv = document.getElementById('time-spent');
+    if (timeDiv) {
+        timeDiv.textContent = '';
+        timeDiv.className = 'time-spent';
+    }
     
     // Remove the word-description element if it exists
     const wordDescriptionElementToRemove = document.getElementById('word-description');
@@ -631,27 +636,60 @@ function handleGlobalKeydown(event) { /* ... This function should be removed ...
 
 function applyFeedbackToInputs(userAttemptString, expectedWordString) {
     userAttemptString = String(userAttemptString || '').toLowerCase();
-    expectedWordString = String(expectedWordString || ''); 
+    expectedWordString = String(expectedWordString || '');
     let allCorrect = true;
+
+    const wordGuessArea = document.querySelector('.word-guess-area');
+    const existingChildren = wordGuessArea ? Array.from(wordGuessArea.childNodes) : [];
+    const extraNodes = existingChildren.slice(inputElements.length);
+
+    const typedRow = document.createElement('div');
+    typedRow.className = 'typed-word-row';
+    const resultRow = document.createElement('div');
+    resultRow.className = 'result-word-row';
 
     for (let i = 0; i < inputElements.length; i++) {
         const input = inputElements[i];
         const expectedCharOriginal = expectedWordString[i] || '';
-        const userChar = userAttemptString[i] || ''; 
+        const userChar = userAttemptString[i] || expectedCharOriginal;
+
+        const typedSpan = document.createElement('span');
+        typedSpan.className = 'inline-input typed-letter';
+        typedSpan.textContent = userChar;
+
+        const resultSpan = document.createElement('span');
+        resultSpan.className = 'inline-input result-letter';
+        resultSpan.textContent = expectedCharOriginal;
 
         if (!input.classList.contains('hint-letter')) {
-            input.value = expectedCharOriginal; 
-            input.readOnly = true; 
-            input.classList.remove('input-incorrect'); 
             if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
-                input.classList.add('input-incorrect');
+                typedSpan.classList.add('input-incorrect');
                 allCorrect = false;
+            } else {
+                typedSpan.classList.add('input-correct');
             }
+            resultSpan.classList.add('input-correct');
         } else {
-            input.value = expectedCharOriginal; 
+            typedSpan.classList.add('hint-letter');
+            resultSpan.classList.add('hint-letter');
         }
+
+        typedRow.appendChild(typedSpan);
+        resultRow.appendChild(resultSpan);
     }
-    // Log active element after inputs are made read-only
+
+    if (wordGuessArea) {
+        wordGuessArea.innerHTML = '';
+        wordGuessArea.classList.add('show-feedback');
+        if (!allCorrect) {
+            wordGuessArea.appendChild(typedRow);
+        }
+        wordGuessArea.appendChild(resultRow);
+        extraNodes.forEach(node => wordGuessArea.appendChild(node));
+    }
+
+    inputElements = Array.from(resultRow.children);
+
     console.log("[gamePlayInterface.applyFeedbackToInputs] Active element after setting inputs readOnly:", document.activeElement);
     return allCorrect;
 }
@@ -689,27 +727,32 @@ function checkAnswerInternal() {
     const answerProcessingResult = processAnswerFn(userAnswer, finalTimeElapsed);
     
     applyFeedbackToInputs(userAnswer, answerProcessingResult.correctAnswer);
-    
-    let feedbackHTML = '';
-    let timerInfoHTML = '';
-    const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0, timeoutPerLetter: 0 };
 
-    if (answerProcessingResult.resultStatus !== 'success' && answerProcessingResult.resultStatus !== 'timeout' && timerEvalContext.currentWordTimeoutThreshold > 0) {
-        const timeTaken = answerProcessingResult.feedbackTime.toFixed(1);
-        const timeLimit = (timerEvalContext.timeoutPerLetter * (missingLetterCount > 0 ? missingLetterCount : 1)).toFixed(1);
-        console.log(`[gamePlayInterface] Time limit calculation: timePerLetter=${timerEvalContext.timeoutPerLetter}s, missing letters=${missingLetterCount}, totalLimit=${timeLimit}s`);
-        timerInfoHTML = `<div style="font-size: 0.9em; margin-top: 5px;">Time: ${timeTaken}s (Limit: ${timeLimit}s)</div>`;
+    const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0, timeoutPerLetter: 0 };
+    const timeTaken = answerProcessingResult.feedbackTime.toFixed(1);
+
+    const timeDiv = document.getElementById('time-spent');
+    if (timeDiv) {
+        timeDiv.textContent = `Time: ${timeTaken}s - press Enter to continue`;
+        timeDiv.className = 'time-spent';
     }
 
     if (answerProcessingResult.resultStatus === 'success') {
-        feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s</div></div>`;
-    } else if (answerProcessingResult.resultStatus === 'timeout') { 
-        feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Correct (but a bit slow)</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s. Try to be faster!</div></div>`;
-    } else { 
-        feedbackHTML = `<div class="incorrect-feedback"><span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><br><div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">Press Enter to continue.${timerInfoHTML}</div></div>`;
+        if (timeDiv) {
+            if (timerEvalContext.hasTimeLimit && answerProcessingResult.feedbackTime > timerEvalContext.currentWordTimeoutThreshold) {
+                timeDiv.classList.add('time-yellow');
+            } else {
+                timeDiv.classList.add('time-green');
+            }
+        }
+        if(feedbackDiv) feedbackDiv.innerHTML = '';
+    } else if (answerProcessingResult.resultStatus === 'timeout') {
+        if (timeDiv) timeDiv.classList.add('time-yellow');
+        if(feedbackDiv) feedbackDiv.innerHTML = '';
+    } else {
+        if (timeDiv) timeDiv.classList.add('time-red');
+        if(feedbackDiv) feedbackDiv.innerHTML = `<span class="incorrect">❌ Incorrect. Press Enter to continue.</span>`;
     }
-    
-    if(feedbackDiv) feedbackDiv.innerHTML = feedbackHTML;
 
     console.log("[gamePlayInterface.checkAnswerInternal] Before setting waitingForContinue:", waitingForContinue);
     waitingForContinue = true; 

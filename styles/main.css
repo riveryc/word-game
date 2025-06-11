@@ -118,6 +118,56 @@ h1 {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* When inputs are replaced with spans after answering */
+.inline-input.result-letter {
+    position: relative;
+    display: inline-block;
+}
+
+.typed-word-row {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    margin-bottom: 4px;
+}
+
+.result-word-row {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+}
+
+.typed-letter {
+    border-bottom: none;
+}
+
+.time-spent {
+    font-size: 1.1em;
+    margin: 10px 0;
+}
+
+.time-spent.time-green {
+    color: #90EE90;
+}
+
+.time-spent.time-yellow {
+    color: #FFD700;
+}
+
+.time-spent.time-red {
+    color: #FF6B6B;
+}
+
+.letter-overlay {
+    position: absolute;
+    top: -1.2em;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8em;
+    color: #dc3545;
+    pointer-events: none;
+}
+
 .visible-letter {
     font-size: 2.5em;
     font-weight: bold;
@@ -275,6 +325,10 @@ h1 {
     margin-top: 10px;
     margin-bottom: 10px;
     gap: 2px; /* Minimal gap, .inline-input has its own margin */
+}
+
+.word-guess-area.show-feedback {
+    flex-direction: column;
 }
 
 /* Shake animation for input validation */
