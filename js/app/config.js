@@ -21,7 +21,6 @@ export const GAME_CONFIG = {
     
     // Audio settings
     AUDIO: {
-        DICTIONARY_API_TIMEOUT: 3000,
         VOLUME: 1.0,
         SPEECH_RATE: 0.6,
         SPEECH_PITCH: 1.0
@@ -127,7 +126,6 @@ export const CSS_CLASSES = {
 
 // API endpoints and URLs
 export const API = {
-    DICTIONARY_API: 'https://api.dictionaryapi.dev/api/v2/entries/en/',
     GOOGLE_TTS_BASE: 'https://translate.google.com/translate_tts',
     GOOGLE_SHEETS_EXPORT_BASE: 'https://docs.google.com/spreadsheets/d/',
     LOCAL_CSV_FILE: 'words.csv'

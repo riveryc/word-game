@@ -70,18 +70,18 @@ class AudioCacheManager {
     }
 
     // Generate cache key
-    generateKey(word, provider = 'dictionary') {
+    generateKey(word, provider = 'google') {
         return `${provider}_${word.toLowerCase()}`;
     }
 
     // Check if word is cached
-    has(word, provider = 'dictionary') {
+    has(word, provider = 'google') {
         const key = this.generateKey(word, provider);
         return this.cache.has(key);
     }
 
     // Get cached audio URL
-    get(word, provider = 'dictionary') {
+    get(word, provider = 'google') {
         const key = this.generateKey(word, provider);
         this.cacheStats.totalRequests++;
         
@@ -101,7 +101,7 @@ class AudioCacheManager {
     }
 
     // Set cached audio URL
-    set(word, url, provider = 'dictionary') {
+    set(word, url, provider = 'google') {
         const key = this.generateKey(word, provider);
         
         const entry = {
@@ -148,7 +148,7 @@ class AudioCacheManager {
     }
 
     // Get cached audio from server
-    async getFromServer(word, provider = 'dictionary') {
+    async getFromServer(word, provider = 'google') {
         if (!this.serverCacheEnabled) {
             return null;
         }
@@ -196,7 +196,7 @@ class AudioCacheManager {
     }
 
     // Remove specific entry
-    remove(word, provider = 'dictionary') {
+    remove(word, provider = 'google') {
         const key = this.generateKey(word, provider);
         return this.cache.delete(key);
     }
@@ -230,7 +230,7 @@ class AudioCacheManager {
     }
 
     // Preload audio for multiple words
-    async preloadWords(words, provider = 'dictionary', progressCallback = null) {
+    async preloadWords(words, provider = 'google', progressCallback = null) {
         const results = {
             total: words.length,
             cached: 0,

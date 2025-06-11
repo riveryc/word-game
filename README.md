@@ -6,7 +6,7 @@ A fun and educational web-based spelling game designed for young learners. Kids 
 
 ### 🎮 Core Gameplay
 - **Interactive Spelling**: Fill in missing letters directly within the word display
-- **Professional Audio**: High-quality dictionary pronunciation from internet with US preference + computer voice fallback
+- **Professional Audio**: High-quality Google pronunciation from internet with computer voice fallback
 - **Smart Hints**: Example sentences with target word hidden for contextual learning
 - **Visual Error Comparison**: See exactly which letters were wrong with highlighted differences
 - **Unified Enter Controls**: Consistent Enter-to-continue for both correct and incorrect answers
@@ -22,7 +22,7 @@ Choose from 3 difficulty levels:
 - **Contextual Learning**: Example sentences with target word hidden for better understanding
 - **Visual Error Analysis**: Side-by-side comparison showing user's attempt vs. correct spelling
 - **Smart Mistake Highlighting**: Incorrect letters highlighted in bold red for easy identification
-- **Internet-Based Audio**: Crystal-clear pronunciation from online services (primarily Google TTS, with dictionaryapi.dev as a fallback) with smart caching
+- **Internet-Based Audio**: Crystal-clear pronunciation from Google TTS with smart caching
 - **Enhanced Mistake Learning**: Big, glowing display of correct spelling for better memory retention
 - **Bulletproof Retry System**: Practice only words you got wrong - no cheating possible!
 - **Word Count Selection**: Choose how many words to practice (appears for 30+ word lists)
@@ -54,7 +54,7 @@ Choose from 3 difficulty levels:
 
 2. **Navigate** to the project directory:
    ```bash
-   cd word_game
+   cd word-game
    ```
 
 3. **Start the web server**:
@@ -112,7 +112,7 @@ Choose from 3 difficulty levels:
 ## 📁 File Structure
 
 ```
-word_game/
+word-game/
 ├── index.html          # Main game interface
 ├── js/                   # Main JavaScript directory
 │   ├── core.js           # Core application logic
@@ -205,7 +205,7 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 - **Pre-configured Sample**: Comes with a ready-to-use Google Sheet for immediate play
 - **Advanced Filtering**: Filter words by date range, grade, and source (works for both data sources)
 - **Real-time Updates**: Word count and selections update instantly as filters change
-- **Internet-Based Audio**: Dictionary API (dictionaryapi.dev) with US pronunciation preference for superior quality
+- **Internet-Based Audio**: Google TTS used for superior pronunciation quality
 - **Smart Audio System**: 3-second timeout with instant fallback to computer voice if internet unavailable
 - **Performance Caching**: Audio URLs cached for instant replay without re-downloading
 - **Robust CSV Parsing**: Handles complex descriptions with commas and quotes
@@ -228,13 +228,13 @@ elephant | 2024-01-16 | 3     | animals | The elephant has a long trunk | (for f
 - Add or remove levels as needed
 
 ### Audio Settings
-- Internet-based services (Google TTS and Dictionary API) provide crystal-clear professional pronunciation
+- Internet-based service Google TTS provides crystal-clear professional pronunciation
 - Smart fallback to computer speech with adjustable rate, pitch, and volume
 - Cached for performance with 3-second timeout for reliability
 
 ## 🐛 Known Behavior & Bug Fixes
 
-- **Smart Audio Fallback**: Seamlessly switches to computer voice if internet/dictionary API unavailable
+- **Smart Audio Fallback**: Seamlessly switches to computer voice if the internet is unavailable
 - **CSV Flexibility**: Supports both simple and complex description formats
 - **Consistent Experience**: Local and online data sources now have identical functionality
 
@@ -285,9 +285,20 @@ This project is open source and available for educational use.
 ## 🎉 Acknowledgments
 
 Created with love for young learners everywhere! Special thanks to:
-- Google TTS & Dictionary API (dictionaryapi.dev) for high-quality pronunciation
+- Google TTS for high-quality pronunciation
 - All the kids who will use this to improve their spelling skills
 - Parents and teachers who make learning fun
+
+## 🔍 Running Tests
+
+Install required dependencies and execute the Python and JavaScript test suites:
+
+```bash
+pip install -r requirements.txt
+npm install
+python -m pytest -q
+npm test --silent
+```
 
 ---
 
@@ -296,7 +307,7 @@ Created with love for young learners everywhere! Special thanks to:
 ### 🔄 Version History
 - **v2.7 (Recent Updates)**:
   - ✨ Major JavaScript modularization for improved organization and maintainability (see new File Structure).
-  - 🔊 Enhanced online audio: Google TTS is now the primary source, with Dictionary API as a fallback.
+  - 🔊 Enhanced online audio: Google TTS is now the primary source.
   - 🧪 Integrated Vitest for JavaScript testing.
   - 🛠️ Added basic engineer commands (details might be project-specific).
   - 🐞 Numerous bug fixes including focus issues, audio playback, and UI interactions.
@@ -311,7 +322,7 @@ Created with love for young learners everywhere! Special thanks to:
 - **v2.3**: Network accessibility and pre-filled default Google Sheets URL
 - **v2.2**: Advanced filtering system for Google Sheets (date, grade, source filters)
 - **v2.1**: Google Sheets integration with dual data source selection
-- **v2.0**: Enhanced audio system with dictionary API and caching
+- **v2.0**: Enhanced audio system with caching
 - **v1.9**: Full keyboard control with Space bar repeat
 - **v1.8**: Bulletproof retry system and enhanced error display
 - **v1.7**: Word count selection for large lists
