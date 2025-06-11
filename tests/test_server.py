@@ -233,7 +233,7 @@ def test_get_audio_invalid_filename_empty(client):
                                         # or if it matches the rule but filename is empty, our check should catch it.
     # Depending on Flask/Werkzeug routing for trailing slashes and how it extracts <filename>
     # this might be a 404 not for the file, but for the route /audio_cache/ not being defined without a filename.
-    # If filename can be empty string, our pattern r"^(google|dictionary)_[a-zA-Z0-9_]+\.mp3$" will reject it.
+    # If filename can be empty string, our pattern r"^google_[a-zA-Z0-9_]+\.mp3$" will reject it.
     if response.status_code == 404: # Route itself not found if filename is truly empty and not matched
         pass # This is acceptable as Flask/Werkzeug handles it.
     else:

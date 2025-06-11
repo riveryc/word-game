@@ -71,7 +71,6 @@ def cache_audio():
         return jsonify({"error": "Missing 'word' parameter"}), 400
 
     original_word = data['word']
-    # Use normalized for dictionary query and filenames, but original_word for Google TTS
     normalized_word = normalize_word(original_word)
 
     if not isinstance(original_word, str) or not original_word.strip() or not normalized_word:
