@@ -72,7 +72,7 @@ export function showFinalResults(correctAnswers, totalWordsInGame, resultsData, 
     const avgTimeoutTime = timeoutTimes.length > 0 ? (timeoutTimes.reduce((a, b) => a + b, 0) / timeoutTimes.length) : 0;
     const avgIncorrectTime = incorrectTimes.length > 0 ? (incorrectTimes.reduce((a, b) => a + b, 0) / incorrectTimes.length) : 0;
     const avgTimeoutIncorrectTime = timeoutIncorrectTimes.length > 0 ? (timeoutIncorrectTimes.reduce((a, b) => a + b, 0) / timeoutIncorrectTimes.length) : 0;
-    const percentage = totalWordsInGame > 0 ? Math.round((perfectCount / totalWordsInGame) * 100) : 0;
+    const percentPerfect = totalWordsInGame > 0 ? Math.round((perfectCount / totalWordsInGame) * 100) : 0;
     const percentTimeout = totalWordsInGame > 0 ? Math.round((timeoutCount / totalWordsInGame) * 100) : 0;
     const percentIncorrect = totalWordsInGame > 0 ? Math.round((incorrectCount / totalWordsInGame) * 100) : 0;
     const percentTimeoutIncorrect = totalWordsInGame > 0 ? Math.round((timeoutIncorrectCount / totalWordsInGame) * 100) : 0;
