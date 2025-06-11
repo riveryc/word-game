@@ -631,25 +631,42 @@ function handleGlobalKeydown(event) { /* ... This function should be removed ...
 
 function applyFeedbackToInputs(userAttemptString, expectedWordString) {
     userAttemptString = String(userAttemptString || '').toLowerCase();
-    expectedWordString = String(expectedWordString || ''); 
+    expectedWordString = String(expectedWordString || '');
     let allCorrect = true;
 
     for (let i = 0; i < inputElements.length; i++) {
         const input = inputElements[i];
         const expectedCharOriginal = expectedWordString[i] || '';
-        const userChar = userAttemptString[i] || ''; 
+        const userChar = userAttemptString[i] || '';
+
+        // Preserve user's attempt on the element before altering the display
+        input.dataset.userLetter = userChar;
+
+        // Create a span to display the final letter and optional overlay
+        const span = document.createElement('span');
+        span.className = 'inline-input result-letter';
+        span.textContent = expectedCharOriginal;
+        span.dataset.userLetter = userChar;
 
         if (!input.classList.contains('hint-letter')) {
-            input.value = expectedCharOriginal; 
-            input.readOnly = true; 
-            input.classList.remove('input-incorrect'); 
+            span.classList.remove('hint-letter');
             if (expectedCharOriginal.toLowerCase() !== userChar.toLowerCase()) {
-                input.classList.add('input-incorrect');
+                span.classList.add('input-incorrect');
                 allCorrect = false;
+                const overlay = document.createElement('span');
+                overlay.className = 'letter-overlay';
+                overlay.textContent = userChar;
+                span.appendChild(overlay);
+            } else {
+                span.classList.add('input-correct');
             }
         } else {
-            input.value = expectedCharOriginal; 
+            span.classList.add('hint-letter');
         }
+
+        // Replace the input element with the span in the DOM
+        input.parentNode.replaceChild(span, input);
+        inputElements[i] = span;
     }
     // Log active element after inputs are made read-only
     console.log("[gamePlayInterface.applyFeedbackToInputs] Active element after setting inputs readOnly:", document.activeElement);
@@ -691,22 +708,21 @@ function checkAnswerInternal() {
     applyFeedbackToInputs(userAnswer, answerProcessingResult.correctAnswer);
     
     let feedbackHTML = '';
-    let timerInfoHTML = '';
     const timerEvalContext = getTimerContextFn ? getTimerContextFn() : { currentWordTimeoutThreshold: 0, timeoutPerLetter: 0 };
 
     if (answerProcessingResult.resultStatus !== 'success' && answerProcessingResult.resultStatus !== 'timeout' && timerEvalContext.currentWordTimeoutThreshold > 0) {
         const timeTaken = answerProcessingResult.feedbackTime.toFixed(1);
         const timeLimit = (timerEvalContext.timeoutPerLetter * (missingLetterCount > 0 ? missingLetterCount : 1)).toFixed(1);
         console.log(`[gamePlayInterface] Time limit calculation: timePerLetter=${timerEvalContext.timeoutPerLetter}s, missing letters=${missingLetterCount}, totalLimit=${timeLimit}s`);
-        timerInfoHTML = `<div style="font-size: 0.9em; margin-top: 5px;">Time: ${timeTaken}s (Limit: ${timeLimit}s)</div>`;
+        // Previously used to show timer info. Now omitted for simpler feedback.
     }
 
     if (answerProcessingResult.resultStatus === 'success') {
         feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Perfect!</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #90EE90;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s</div></div>`;
     } else if (answerProcessingResult.resultStatus === 'timeout') { 
         feedbackHTML = `<div class="correct-feedback"><span class="correct" style="font-size: 1.5em;">✅ Correct (but a bit slow)</span><br><div style="margin-top: 10px; font-size: 1.1em; color: #FFD700;">Completed in ${answerProcessingResult.feedbackTime.toFixed(1)}s. Try to be faster!</div></div>`;
-    } else { 
-        feedbackHTML = `<div class="incorrect-feedback"><span class="incorrect" style="font-size: 1.5em;">❌ Incorrect.</span><br><div class="feedback-details" style="margin-top: 10px; font-size: 1.1em; color: #FF6B6B;">Press Enter to continue.${timerInfoHTML}</div></div>`;
+    } else {
+        feedbackHTML = `<span class="incorrect">❌ Incorrect. Press Enter to continue.</span>`;
     }
     
     if(feedbackDiv) feedbackDiv.innerHTML = feedbackHTML;
