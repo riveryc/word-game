@@ -4,7 +4,7 @@ import { initializeTimerManager, updateTimeoutThreshold as updateTimerTimeoutThr
 import { initializeGameManager, setGameConfig as setGameManagerConfigImport, updateSelectedLevel as updateGameManagerSelectedLevel, startGame as startGameInManager, getCurrentSelectedLevel as getGameManagerCurrentLevel, processAnswer, requestNextWordOrEndGameDisplay, getCurrentWord as getGameManagerCurrentWordFromManager } from './game/gameManager.js';
 import { updateBackButtonVisibility as updateConfirmationDialogBackButtonVisibility, initializeConfirmationDialogEventListeners } from './ui/confirmationDialog.js';
 import { showFinalResults as showFinalResultsInterfaceFromResults } from './ui/resultsInterface.js';
-import { initializeGamePlayInterface, displayWordChallenge as displayWordChallengeFromGamePlay } from './ui/gamePlayInterface.js';
+import { initializeGamePlayInterface, displayWordChallenge, resetUIStateForTesting, clearGamePlayUI, deactivateGamePlayFocusLock, isWaitingForContinue } from './ui/gamePlayInterface.js';
 import { initializeGameSetupInterface, displayGameSetupScreen as displayGameSetupScreenFromSetup } from './ui/gameSetupInterface.js';
 import { initializeMainAppEventListeners } from './ui/globalEventListeners.js';
 import { audioManager } from './audio/audioManager.js'; // Import AudioManager instance
@@ -78,6 +78,12 @@ function getScriptGlobals() {
 }
 // == End of moved state and helper functions ==
 
+// Top-level definition
+function coreRepeatLastSentence() {
+    console.log('[core.js coreRepeatLastSentence] Called.');
+    audioManager.repeatCurrentSentence();
+}
+
 // Renamed from initializeApp, no longer takes (dependencies) as scriptGlobals are local
 function setupApplication() { 
     console.log("%%%%%%%%%%%%%%%% CORE setupApplication STARTS %%%%%%%%%%%%%%%%"); 
@@ -85,7 +91,7 @@ function setupApplication() {
     // Define core-internal callbacks that use the module-scoped getScriptGlobals/setScriptGlobals
     function coreShowNextWordUI(data) {
         console.log("[core.js coreShowNextWordUI] Called.");
-        displayWordChallengeFromGamePlay(data); 
+        displayWordChallenge(data); 
     }
 
     function coreShowFinalResultsUI(wordResults, wordRetryDataFromManager, correctAnswers, totalWordsInGame, isRetryModeFlag, gameWordObjectsForResults) {
@@ -109,12 +115,6 @@ function setupApplication() {
     function corePlayNewSentence(sentence) {
         console.log("[core.js corePlayNewSentence] Called for sentence:", sentence.substring(0, 50) + "...");
         audioManager.playSentence(sentence);
-    }
-
-    // This function will be called by GamePlayInterface for the repeat button
-    function coreRepeatLastSentence() {
-        console.log("[core.js coreRepeatLastSentence] Called.");
-        audioManager.repeatCurrentSentence();
     }
 
     let coreSetupLevelSelectListeners; 
@@ -299,4 +299,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("%%%%%%%%%%%%%%%% CORE.JS DOMCONTENTLOADED FIRED %%%%%%%%%%%%%%%%");
     initializeTimerManager(); // Initialize timer manager first as it depends on DOM elements
     setupApplication(); // Call the main application setup logic
-}); 
+});
+
+export { coreRepeatLastSentence }; 

@@ -491,6 +491,8 @@ function displayWordChallenge(currentWordData) {
         const missingLetterCount = currentWordData.displayableWordParts.filter(part => part.isHidden).length;
         startWordTimerFn(missingLetterCount > 0 ? missingLetterCount : 1); // Ensure at least 1 if no letters are hidden but timer is on
     }
+
+    setupRepeatButtonListener();
 }
 
 function focusInputElement(index) {
@@ -759,6 +761,9 @@ function checkAnswerInternal() {
     waitingForContinue = true; 
     console.log("[gamePlayInterface.checkAnswerInternal] After setting waitingForContinue:", waitingForContinue);
     
+    // After evaluation, the system is no longer "processing", it's waiting for user input to continue.
+    isProcessing = false;
+
     document.removeEventListener('keydown', handleDocumentKeydown); // Remove any old one first
     document.addEventListener('keydown', handleDocumentKeydown);
     console.log("[gamePlayInterface.checkAnswerInternal] Added document event listener for handleDocumentKeydown.");
@@ -858,4 +863,23 @@ function resetUIStateForTesting() {
 
 // Remove obsolete/renamed functions from export if they are not used elsewhere
 // export { displayWordChallenge, setActiveLetterBox, handleGlobalKeydown, createWordComparisonUI };
-export { displayWordChallenge, resetUIStateForTesting }; // Main export 
+export { displayWordChallenge, resetUIStateForTesting }; // Main export
+
+export function isWaitingForContinue() {
+    return waitingForContinue;
+}
+
+function setupRepeatButtonListener() {
+    const repeatButton = document.getElementById('repeat-button');
+    if (repeatButton && !repeatButton._listenerAttached) {
+        repeatButton.addEventListener('click', function() {
+            console.log('[gamePlayInterface] Repeat button clicked. State - waitingForContinue:', waitingForContinue, ', isProcessing:', isProcessing, ', repeatWordFn exists:', !!repeatWordFn);
+            
+            // This now mirrors the space key handler's logic.
+            if (!isProcessing && repeatWordFn) {
+                repeatWordFn();
+            }
+        });
+        repeatButton._listenerAttached = true; // prevent adding multiple listeners
+    }
+} 
