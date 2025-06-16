@@ -12,10 +12,11 @@
     "docker:build": "docker build -t word-game-app .",
     "docker:run": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm word-game-app",
     "docker:start": "npm run docker:build && npm run docker:run",
-    "docker:build:amd64": "docker build --platform linux/amd64 -t riveryc/word-game:latest .",
-    "docker:run:amd64": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm riveryc/word-game:latest",
+    "docker:build:amd64": "docker build --platform linux/amd64 -t riveryc/word-game:$(date +%Y%m%d) .",
+    "docker:run:amd64": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm riveryc/word-game:$(date +%Y%m%d)",
     "docker:start:amd64": "npm run docker:build:amd64 && npm run docker:run:amd64",
-    "docker:push:amd64": "docker push riveryc/word-game:latest"
+    "docker:push:amd64": "docker push riveryc/word-game:$(date +%Y%m%d)",
+    "docker:release": "npm run docker:build:amd64 && npm run docker:push:amd64"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",
