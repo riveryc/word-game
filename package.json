@@ -16,7 +16,7 @@
     "docker:run:amd64": "docker run -p 8000:8000 -v \"$(pwd)/audio_cache:/app/audio_cache\" --rm riveryc/word-game:$(date +%Y%m%d)",
     "docker:start:amd64": "npm run docker:build:amd64 && npm run docker:run:amd64",
     "docker:push:amd64": "docker push riveryc/word-game:$(date +%Y%m%d)",
-    "docker:release": "npm run docker:build:amd64 && npm run docker:push:amd64"
+    "docker:release": "npm run docker:build:amd64 && npm run docker:push:amd64 && echo \"Released: riveryc/word-game:$(date +%Y%m%d)\""
   },
   "devDependencies": {
     "jsdom": "^26.1.0",
