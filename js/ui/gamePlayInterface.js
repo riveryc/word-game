@@ -683,7 +683,6 @@ function applyFeedbackToInputs(userAttemptString, expectedWordString) {
 
     if (wordGuessArea) {
         wordGuessArea.innerHTML = '';
-        wordGuessArea.classList.add('show-feedback');
         if (!allCorrect) {
             wordGuessArea.appendChild(typedRow);
         }

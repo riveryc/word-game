@@ -128,13 +128,15 @@ h1 {
     display: flex;
     justify-content: center;
     gap: 2px;
-    margin-bottom: 4px;
+    margin-bottom: 10px;
+    width: 100%; /* Take full width to force stacking */
 }
 
 .result-word-row {
     display: flex;
     justify-content: center;
     gap: 2px;
+    width: 100%; /* Take full width to force stacking */
 }
 
 .typed-letter {
@@ -325,10 +327,7 @@ h1 {
     margin-top: 10px;
     margin-bottom: 10px;
     gap: 2px; /* Minimal gap, .inline-input has its own margin */
-}
-
-.word-guess-area.show-feedback {
-    flex-direction: column;
+    flex-wrap: wrap; /* Allow wrapping to new lines */
 }
 
 /* Shake animation for input validation */
